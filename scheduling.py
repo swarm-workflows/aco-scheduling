@@ -221,7 +221,7 @@ if __name__ == "__main__":
     LRU_Scheduling_Optimized_Shortest_First(data) #This is the optimal LRU policy, placing the fastest job at the available host
     LRU_Scheduling_Optimized_Longest_First(data) #This is the worst of all since it peaks the slowest job at the available host - we can disregard
     
-    exit()
+    #exit()
     
     bounds = PermutationVar(valid_set=list(range(0, n_jobs)), name="per_var")
     problem = JobShopProblem(bounds=bounds, minmax="min", data=data)
