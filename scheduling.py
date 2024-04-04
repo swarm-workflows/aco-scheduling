@@ -22,56 +22,6 @@ def create_random_job_scheduling_problem(n_jobs, n_machines, seed=None):
     #sys.exit(0)
     return(mat_data)
 
-
-def visualize(data, x, path=None, label=None):
-    """
-    Visualization for job scheduling problem.
-    """
-    time_mat = data['job_times']
-    #sys.exit(0)
-    with plt.style.context('ggplot'):
-        n_machines, n_jobs = data['n_machines'], data['n_jobs'], 
-
-        # Compute total times and job starts for visualization
-        machine_times = np.zeros(n_machines)
-        job_starts = {i: [] for i in range(n_machines)}  # Store start time for each job on each machine
-        for  machine_idx, job_idx in enumerate(x):
-            #print('----------------------')
-            #machine_idx = int(machine_idx)
-            machine_idx = int(machine_idx) % (n_machines)  # Apply modulo operation
-            #print(machine_idx, job_idx, time_mat[job_idx][machine_idx])
-            start_time = machine_times[machine_idx]
-            #print(machine_idx)
-            #print(machine_idx,job_idx)
-            #print(start_time)
-            job_starts[machine_idx].append(start_time)
-            #print(machine_idx,job_idx)
-            machine_times[machine_idx] += time_mat[job_idx][machine_idx]
-            #print(machine_times[machine_idx])
-            #print('----------------------')
-
-        #print(x)
-        #print(job_starts)
-        fig, ax = plt.subplots()
-        Y = np.arange(n_machines)
-
-        # Create bars for the Gantt chart
-        for machine_idx in range(n_machines):
-            for i, start_time in enumerate(job_starts[machine_idx]):
-                ax.barh(machine_idx, machine_times[machine_idx] - start_time, left=start_time, height=0.5, label=f"Job {i}", align='center')
-
-        # Set labels and titles
-        ax.set_xlabel("Time")
-        ax.set_ylabel("Machine")
-        ax.set_yticks(Y)
-        ax.set_yticklabels([f"M{i}" for i in Y])
-        ax.set_title("Job Scheduling: %s" % label)
-        plt.tight_layout()
-        if path is not None:
-            plt.savefig(path)
-        plt.show()
-
-
 def visualizeLRU(data, machine_schedule, path=None, label=None):
     """
     Visualization for job scheduling problem with LRU (we can merge it with the top one but needs some polishing).
@@ -81,7 +31,6 @@ def visualizeLRU(data, machine_schedule, path=None, label=None):
 
         fig, ax = plt.subplots()
         Y = np.arange(n_machines)
-
         # Create bars for the Gantt chart
         for machine_idx in range(n_machines):
             for start_time, job_idx in machine_schedule[machine_idx]["jobs"]:
@@ -98,6 +47,19 @@ def visualizeLRU(data, machine_schedule, path=None, label=None):
             plt.savefig(path)
         plt.show()
 
+def perm_to_machine_schedule(data, x):
+    n_machines, time_mat = data["n_machines"], data["job_times"]
+    machine_schedule = [{"jobs": [], "total_time": 0} for _ in range(n_machines)]
+    for machine_idx, job_idx in enumerate(x):
+        machine_idx = machine_idx % n_machines
+        ms = machine_schedule[machine_idx]
+        ms["jobs"].append([ms["total_time"], job_idx])
+        ms["total_time"] += time_mat[job_idx][machine_idx]
+    return machine_schedule
+
+def visualize(data, x, path=None, label=None):
+    machine_schedule = perm_to_machine_schedule(data, x)
+    visualizeLRU(data, machine_schedule, path, label)
 
 def PSO_Scheduling(problem):
     model = PSO.AIW_PSO(epoch=100, pop_size=100, seed=10)
