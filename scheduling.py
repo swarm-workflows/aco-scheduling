@@ -47,6 +47,53 @@ def visualizeLRU(data, machine_schedule, path=None, label=None):
             plt.savefig(path)
         plt.show()
 
+def optimize_machine_schedule(data, ms):
+    simple = []
+    for machine_idx in range(data['n_machines']):
+        machine = ms[machine_idx]
+        simple_ms = {
+            'jobs': [ entry[1] for entry in machine['jobs'] ],
+            'total_time': machine['total_time'],
+        }
+        simple.append(simple_ms)
+
+    time_mat = data['job_times']
+
+    changed = True
+    while changed:
+        changed = False
+
+        largest_idx = np.argmax([m['total_time'] for m in simple])
+        largest_total_time = simple[largest_idx]['total_time']
+
+        jobs_to_be_moved = sorted(simple[largest_idx]['jobs'], key=lambda j: time_mat[j][largest_idx], reverse=True)
+        for j in jobs_to_be_moved:
+            best_idx = -1
+            best_makespan = largest_total_time
+            for other_idx in range(data['n_machines']):
+                if other_idx == largest_idx:
+                    continue
+                other_cand_time = simple[other_idx]['total_time'] + time_mat[j][other_idx]
+                if other_cand_time < best_makespan:
+                    best_makespan = other_cand_time
+                    best_idx = other_idx
+            if best_idx > -1:
+                simple[largest_idx]['total_time'] -= time_mat[j][largest_idx]
+                simple[largest_idx]['jobs'].remove(j)
+                simple[best_idx]['total_time'] += time_mat[j][best_idx]
+                simple[best_idx]['jobs'].append(j)
+                changed = True
+                break # inner loop
+    restored = {}
+    for machine_idx, machine in enumerate(simple):
+        restored_jobs = []
+        total_time = 0
+        for job in machine['jobs']:
+            restored_jobs.append([total_time, job])
+            total_time += time_mat[job][machine_idx]
+        restored[machine_idx] = {'jobs': restored_jobs, 'total_time': total_time}
+    return restored
+
 def perm_to_machine_schedule(data, x):
     n_machines, time_mat = data["n_machines"], data["job_times"]
     machine_schedule = [{"jobs": [], "total_time": 0} for _ in range(n_machines)]
@@ -89,6 +136,9 @@ def ACOR_Scheduling(problem):
     model.history.save_global_objectives_chart(filename="goc-aco")
     model.history.save_local_objectives_chart(filename="loc-aco")
 
+    machine_schedule = perm_to_machine_schedule(data, x)
+    optimal = optimize_machine_schedule(data, machine_schedule)
+    visualizeLRU(data, optimal, path='schedule-aco-opt.png')
 
 def LRU_Scheduling(data):
     lru_schedule = LRUSchedule(data)
