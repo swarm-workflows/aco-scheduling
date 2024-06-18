@@ -132,11 +132,12 @@ def convert_to_nx(times, machines, n_jobs, n_machines):
 
 def load_network_fn(fn: str, sid: int):
     data = np.load(fn)
+    data = data.astype(int)
     print(data.shape)
     times, machines = data[sid]
     print(times.shape)
     n_jobs, n_machines = data.shape[2:]
-    return convert_to_nx(times, machines, n_jobs, n_machines)
+    return times, machines, convert_to_nx(times, machines, n_jobs, n_machines)
 
 
 def draw_networks(g1, g2=None):
@@ -276,12 +277,13 @@ def ortools_api(jobs, machines):
 
 
 def main():
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument('--data', required=True)
-    # parser.add_argument('--pos', type=int, default=0)
-    # args = parser.parse_args()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data', required=True)
+    parser.add_argument('--pos', type=int, default=0)
+    args = parser.parse_args()
 
-    # g1, g2 = load_network_fn(args.data, args.pos)
+    times, machines, (g1, g2) = load_network_fn(args.data, args.pos)
+    n, m = times.shape
 
     # case 1 example:
     # https://developers.google.com/optimization/scheduling/job_shop
@@ -290,14 +292,14 @@ def main():
     # machines = np.array([[1, 2, 3], [1, 3, 2], [2, 3, 1]])
 
     # case2: random jobs (n=10, m=8)
-    n = 5
-    m = 4
-    times = np.random.randint(1, 10, (n, m))
-    machines = generate_random_machines(n, m)
+    #n = 5
+    #m = 4
+    #times = np.random.randint(1, 10, (n, m))
+    #machines = generate_random_machines(n, m)
 
-    g1, g2 = convert_to_nx(times, machines, n, m)
+    #g1, g2 = convert_to_nx(times, machines, n, m)
     p = DGProblem(g1, g2)
-    model = ACOR.OriginalACOR(epoch=200, pop_size=10)
+    model = ACOR.OriginalACOR(epoch=50, pop_size=10)
     # model = PSO.OriginalPSO(epoch=100, pop_size=100, seed=10)
     model.solve(p, mode="swarm")
     # print(model.g_best.solution)
