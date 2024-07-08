@@ -156,19 +156,14 @@ if __name__ == "__main__":
             files = glob("*/*.txt")
 
         for fn in sorted(files[:]):
-
-            try:
-                durations, machines = read_file(fn)
-                n_jobs = len(durations)
-                n_machines = len(durations[0])
-                print(f"Solving {fn.split('/')[-1].split('.')[0]} {n_jobs} {n_machines}", end="\t")
-                tic = time()
-                jobshop_problem(durations, machines)
-                toc = time()
-                print(f"Time: {toc - tic:.2f}")
-            except Exception as e:
-                print(f"An error occurred with {fn}: {e}")
-                continue
+            durations, machines = read_file(fn)
+            n_jobs = len(durations)
+            n_machines = len(durations[0])
+            print(f"Solving {fn.split('/')[-1].split('.')[0]} {n_jobs} {n_machines}", end="\t")
+            tic = time()
+            jobshop_problem(durations, machines)
+            toc = time()
+            print(f"Time: {toc - tic:.2f}")
     else:
         if args.format == "standard":
             fn = f"./{args.problem}/{args.problem}{args.id}.txt"
