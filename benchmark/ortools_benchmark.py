@@ -11,14 +11,13 @@ jobs. This is called the makespan.
 
 import argparse
 import collections
-import os.path as osp
 from glob import glob
 from time import time
 
-from matplotlib.pylab import f
 from ortools.sat.colab import visualization
 from ortools.sat.python import cp_model
-from pandas import options
+
+from .utils import read_file
 
 
 def jobshop_problem(durations, machines) -> None:
@@ -94,53 +93,6 @@ def jobshop_problem(durations, machines) -> None:
         print("Time limit, best known makespan: %i" % solver.ObjectiveValue())
 
 
-def read_file(fn):
-    r"""Read job file and return duration and machine matrices.
-
-    Args:
-        fn (str): File name.
-
-    Returns:
-        tuple: Duration and machine matrices.
-    """
-    if not osp.exists(fn):
-        raise FileExistsError(f"Error: Problem {args.problem}{args.id} does not exist.")
-    durations = []
-    machines = []
-
-    if args.format == "taillard":
-        with open(fn, 'r') as file:
-            first_line = file.readline().strip()
-            num_jobs, num_machines = map(int, first_line.split())
-
-            for _ in range(num_jobs):
-                line = file.readline().strip()
-                durations.append(list(map(int, line.split())))
-
-            for _ in range(num_jobs):
-                line = file.readline().strip()
-                machines.append(list(map(int, line.split())))
-            # adjust machine id
-            machines = [[m - 1 for m in machine] for machine in machines]
-    else:
-        with open(fn, 'r') as file:
-            first_line = file.readline().strip()
-            num_jobs, num_machines = map(int, first_line.split())
-
-            for _ in range(num_jobs):
-                line = file.readline().strip().split()
-                job_machines = []
-                job_durations = []
-                for i in range(0, len(line), 2):
-                    # Adjust machine ID by subtracting 1 for 0-based indexing
-                    job_machines.append(int(line[i]))
-                    job_durations.append(int(line[i + 1]))
-                machines.append(job_machines)
-                durations.append(job_durations)
-
-    return durations, machines
-
-
 if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument("--problem", type=str, default="abz")
@@ -156,7 +108,7 @@ if __name__ == "__main__":
             files = glob("*/*.txt")
 
         for fn in sorted(files[:]):
-            durations, machines = read_file(fn)
+            durations, machines = read_file(fn, problem=args.problem, id=args.id, format=args.format)
             n_jobs = len(durations)
             n_machines = len(durations[0])
             print(f"Solving {fn.split('/')[-1].split('.')[0]} {n_jobs} {n_machines}", end="\t")
