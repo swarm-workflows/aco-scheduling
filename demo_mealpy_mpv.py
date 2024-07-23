@@ -10,6 +10,7 @@
 import argparse
 import itertools
 from collections import defaultdict
+from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -19,7 +20,7 @@ from mealpy import ACOR, PSO, BinaryVar, PermutationVar, Problem
 
 from benchmark.utils import read_file
 from ortools_api import ortools_api
-from utils import convert_to_nx, load_network_fn
+from utils import convert_to_nx
 from var import MixPermVars
 
 
@@ -125,6 +126,66 @@ class DGProblem(Problem):
         # return node_dist["t"]
 
 
+class ACORLocalSearch(ACOR.OriginalACOR):
+    r""" ACO with Local Search. """
+
+    def __init__(self, negate_var=None, *args, **kwargs):
+        r""" Initialize the ACO with Local Search.
+
+        Args:
+            negate_var (str): variable to negate
+        """
+        super().__init__(*args, **kwargs)
+        self.negate_var = negate_var
+        self.verbose = kwargs.get("verbose", False)
+
+    def evolve(self, epoch):
+        r""" Evolve the population.
+
+        Args:
+            epoch (int): number of epochs
+        """
+        super().evolve(epoch)
+
+        pop_new = []
+        for i in range(len(self.pop)):
+            pop_new.append(self.improve(self.pop[i]))
+        pop_new = self.update_target_for_population(pop_new)
+        self.pop = self.get_sorted_and_trimmed_population(self.pop + pop_new, self.pop_size, self.problem.minmax)
+        if self.verbose:
+            print('iter', epoch)
+
+    def improve(self, agent):
+        r""" Improve the solution by examing the variables
+
+        Args:
+            agent (Agent): agent to improve
+        """
+        best_makespan = self.problem.obj_func(agent.solution)
+        best = agent.solution
+        changed = False
+
+        decoded = self.problem.decode_solution(agent.solution)
+        for m_id in decoded:
+            for idx in range(len(decoded[m_id]) - 1):
+                candidate = deepcopy(decoded)
+                # change its variable
+                candidate[m_id][idx], candidate[m_id][idx + 1] = candidate[m_id][idx + 1], candidate[m_id][idx]
+                encoded = self.problem.encode_solution([candidate[v.name] for v in self.problem.bounds])
+                new_makespan = self.problem.obj_func(encoded)
+                if new_makespan < best_makespan:
+                    best_makespan = new_makespan
+                    best = encoded
+                    changed = True
+
+        if changed:
+            if self.verbose:
+                print('imp')
+            return self.generate_empty_agent(best)
+
+        return agent
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--problem', type=str, default="ft")
@@ -163,11 +224,12 @@ def main():
     g1, g2 = convert_to_nx(times, machines, n, m)
     p = DGProblem(g1, g2, n, m, log_to=args.log_to)
     model = ACOR.OriginalACOR(epoch=300, pop_size=10, )
-    # # model = PSO.OriginalPSO(epoch=100, pop_size=100, seed=10)
     model.solve(p, mode="swarm", n_workers=48)
-    # # print(model.g_best.solution)
-    # print("ACO - best solution", model.g_best.target.fitness)
+    print("ACO - best solution", model.g_best.target.fitness)
 
+    model_ls = ACORLocalSearch(epoch=300, pop_size=10)
+    model_ls.solve(p, mode="swarm", n_workers=48)
+    print("ACO + LS - best solution", model_ls.g_best.target.fitness)
     # res_dag = p.build_dag([int(x) for x in model.g_best.solution])
     # draw_networks(res_dag)
 
