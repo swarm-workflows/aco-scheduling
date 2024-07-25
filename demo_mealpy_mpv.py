@@ -8,26 +8,23 @@
 * [x] provide OR-Tools as baseline (A constraint programming solver, `pip install -U ortools`)
 """
 import argparse
-import itertools
 from collections import defaultdict
 from copy import deepcopy
 
-import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 from matplotlib.pylab import f
-from mealpy import ACOR, PSO, BinaryVar, PermutationVar, Problem
+from mealpy import ACOR, PermutationVar, Problem
 
 from benchmark.utils import read_file
 from ortools_api import ortools_api
 from utils import convert_to_nx
-from var import MixPermVars
 
 
 class DGProblem(Problem):
     r""" Disjunctive Graph Problem for Job Shop Scheduling. """
 
-    def __init__(self, C: nx.DiGraph, D: nx.Graph, n: int, m: int, **kwargs):
+    def __init__(self, C: nx.DiGraph, D: nx.Graph, n_jobs: int, n_machines: int, **kwargs):
         r""" Initialize the problem.
 
         Args:
@@ -36,11 +33,9 @@ class DGProblem(Problem):
             n (int): number of jobs
             m (int): number of machines
         """
-        # conjunctive graph
-        self.C = C
-        # disjunctive graph
-        self.D = D
-        self.n, self.m = n, m
+        # conjunctive graph - directed graph, disjunctive graph - undirected graph
+        self.C, self.D = C, D
+        self.n_jobs, self.n_machines = n_jobs, n_machines
 
         # group nodes by machines
         self.group_nodes = defaultdict(list)
@@ -49,21 +44,19 @@ class DGProblem(Problem):
         # check nodes in D is subset of nodes in C (except S, T)
         for node in D.nodes:
             assert C.has_node(node)
-        self.enumerated_nodes = list(D.nodes)
-        # NOTE: graph bounds as binary variables
-        # self.graph_bounds = BinaryVar(n_vars=len(D.edges), name='dir_var')
-        #! NOTE: mixed permutation variables
-        # TODO: change the input_sizes as number of nodes per subgraph
-        # self.graph_bounds = MixPermVars(input_sizes=[m] * n, name='mpv')
-        # super().__init__(bounds=self.graph_bounds, minmax='min', log_to='console')
-        bounds = [PermutationVar(valid_set=list(range(n)), name=f"m_{i}") for i in range(m)]
 
+        # NOTE: define a set of mixed permutation variables
+        bounds = [PermutationVar(valid_set=list(range(n_jobs)), name=f"m_{i}") for i in range(n_machines)]
+
+        # logging
         log_to = kwargs.get('log_to', 'console')
         if log_to == 'file':
-            log_file = kwargs.get('log_file', f"history_{n}_{m}.txt")
+            log_file = kwargs.get('log_file', f"history_{n_jobs}_{n_machines}.txt")
             super().__init__(bounds=bounds, minmax='min', log_to='file', log_file=log_file)
         elif log_to == 'console':
             super().__init__(bounds=bounds, minmax='min', log_to='console')
+
+        verbose = kwargs.get('verbose', False)
 
     def obj_func(self, x):
         r""" Objective function
@@ -72,7 +65,6 @@ class DGProblem(Problem):
             x (list): variables
         """
         x_decoded = self.decode_solution(x)
-        # x = x_decoded['mpv']
         return self.compute_makespan(x_decoded)
 
     def build_dag(self, x):
@@ -88,7 +80,7 @@ class DGProblem(Problem):
         assert isinstance(dag, nx.DiGraph)
 
         # enumerate machines
-        for i in range(self.m):
+        for i in range(self.n_machines):
             # build directed edges in the disjunctive graph
             for idx in range(len(x[f"m_{i}"]) - 1):
                 s_node, t_node = self.group_nodes[i][x[f"m_{i}"][idx]], self.group_nodes[i][x[f"m_{i}"][idx + 1]]
@@ -127,7 +119,12 @@ class DGProblem(Problem):
 
 
 class ACORLocalSearch(ACOR.OriginalACOR):
-    r""" ACO with Local Search. """
+    r""" ACO with Local Search.
+
+    Local search strategy:
+        * [x] swap two adjacent jobs in the permutation if it improves the makespan
+
+    """
 
     def __init__(self, negate_var=None, *args, **kwargs):
         r""" Initialize the ACO with Local Search.
