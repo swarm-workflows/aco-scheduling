@@ -1,6 +1,4 @@
 # %%
-%load_ext autoreload
-%autoreload 2
 from jsp.disjunctive_graph import DisjunctiveGraph
 from jsp.aco import ACO
 import networkx as nx
@@ -46,6 +44,6 @@ print(aco_path, aco_cost)
 # %%
 
 
-from ortool_api import ortools_api
+from demo_mealpy_bv import ortools_api
 ortools_api(jobs)
 # %%
