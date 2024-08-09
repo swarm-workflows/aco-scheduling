@@ -1,8 +1,12 @@
 
 import random
 
-from jsp.ant import Ant
-from jsp.disjunctive_graph import DisjunctiveGraph
+from .ant import Ant
+from .disjunctive_graph import DisjunctiveGraph
+from copy import deepcopy
+import networkx as nx
+import numpy as np
+import matplotlib.pyplot as plt
 
 
 class ACO(object):
@@ -11,7 +15,7 @@ class ACO(object):
                  graph=None,
                  ant_max_steps=100,
                  num_iterations=100,
-                 ant_random_init=False,
+                 ant_random_init=True,
                  evaporation_rate=0.5,
                  alpha=0.7,
                  beta=0.3):
@@ -42,16 +46,98 @@ class ACO(object):
         Returns:
             Tuple[List, float]: A tuple containing the path and the cost of the path
         """
-        # send out ants to search for the destination node
-        self._deploy_search_ants(source, target, num_ants)
-        solution_ant = self._deploy_solution_ant(source, target)
-        return solution_ant.path, solution_ant.path_cost
+
         # get the final solution based on the pheromone greedy approach, ie.e, for
         # the bi-directional disjunctive edges, assign direction based on the
         # pheromone level.
         #
         # after getting the DAG, calculate the final solution based on
         #  `s_v + p_v = f_v, s_v = max_{u->v}(f_u)`
+
+
+        # send out ants to search for the destination node
+        self._deploy_search_ants(source, target, num_ants)
+
+        # NOTE: solution_ant's path is a shortest path from S to T rather than a full schedule, so it is not used currently.
+        solution_ant = self._deploy_solution_ant(source, target)
+
+        dag = self.build_dag()
+
+        print(dag)
+        if not nx.is_directed_acyclic_graph(dag):
+            return None, np.inf
+ 
+        #algorithm to calculate makespan with respect to precedence and machine constraints
+        node_dist = {}
+        for node in nx.topological_sort(dag):
+            node_w = dag.nodes[node]['p_time']
+            dists = [node_dist[n] for n in dag.predecessors(node)]
+            if len(dists) > 0:
+                node_w += max(dists)
+
+            node_dist[node] = node_w
+
+        makespan = max(node_dist.values())
+        
+        return solution_ant.path, makespan
+
+    def build_dag(self):
+        """ Create a directed acyclic graph so that makespan of schedule can be calculated.
+        """
+
+        dag = self.graph.ConjGraph.copy()
+        adjList = deepcopy(dag._adj)
+
+        edges = deepcopy(dag.edges)
+
+        #Remove disjunctive edges from the graph
+        for idx, _ in enumerate(edges):
+            start, end = _
+            if dag._adj[start][end]['type'] == 'disjunctive':
+                dag.remove_edge(start, end)
+
+        assert isinstance(dag, nx.DiGraph)
+
+        #Add disjunctive edges back to the graph
+        for idx, node in enumerate(adjList): #source and target nodes have no disjunctive edges
+            if node == 'S' or node == 'T':
+                continue
+            
+            disjunctive_edges = dict(node for node in adjList[node].items() if node[1]['type'] == 'disjunctive')
+
+            #For disjunctives edges (u->v) and (v->u), only add disj edge with higher pheromone value
+            for task in disjunctive_edges:
+
+                edge_pheromone = adjList[node][task]['pheromones']
+                reverse_edge_pheromone = adjList[task][node]['pheromones']
+                
+                if edge_pheromone > reverse_edge_pheromone:
+                    dag.add_edge(node, task)
+                    if nx.is_directed_acyclic_graph(dag):
+                        continue
+                    else:
+                        dag.remove_edge(node, task)
+                else:
+                    dag.add_edge(task, node)
+                    if nx.is_directed_acyclic_graph(dag):
+                        continue
+                    else:
+                        dag.remove_edge(task, node)
+        return dag
+    
+    def draw_networks(self, g1, g2=None):
+        with plt.style.context('ggplot'):
+            pos = nx.spring_layout(g1, seed=7)
+            #pos = nx.kamada_kawai_layout(g1)
+            #pos=0
+            nx.draw_networkx_nodes(g1, pos, node_size=7)
+            nx.draw_networkx_labels(g1, pos)
+            nx.draw_networkx_edges(g1, pos, arrows=True)
+            if g2:
+                nx.draw_networkx_edges(g2, pos, edge_color='r')
+            plt.draw()
+            plt.savefig("dgraph_aco.png")
+            # plt.show()
 
     def _deploy_search_ants(self, source, target, num_ants, **kwargs):
         r"""Deploy search ants that traverse the graph to find the shortest path
