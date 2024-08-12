@@ -1,6 +1,7 @@
 """ Ant class for the ant colony optimization algorithm with disjunctive graph representation of the job shop scheduling problem.
 """
 import random
+import numpy as np
 
 
 class Ant(object):
@@ -65,6 +66,8 @@ class Ant(object):
             u (str): source node
             v (str): destination node
             pheromone_amount (float): pheromone amount to be deposited on the edge (u, v)
+
+            NOTE: Soon to be replaced by max_min_update_pheromones
         """
         if self.graph.ConjGraph.has_edge(u, v):
             self.graph.ConjGraph[u][v]["pheromones"] = (1 - self.evaporation_rate) * \
@@ -74,6 +77,17 @@ class Ant(object):
                 self.graph.DisjGraph[u][v]["pheromones"] + pheromone_amount
         else:
             raise ValueError(f"No edge between {u} and {v} in either graph.")
+        
+    def max_min_update_pheromones(self, best_solution):
+        '''TODO: Implement max_min pheromone values properly.
+        Need 'best_cost' aka best makespan. Find 'best_cost' by creating a dag and calculating makespan after 1 iteration of 100 ants.
+        '''
+        self.pheromone *= (1 - self.rho)
+        for machine, tasks in best_solution.items():
+            for job, operation, start_time, finish_time in tasks:
+                self.pheromone[job][machine] += 1.0 / self.best_cost
+
+        self.pheromone = np.clip(self.pheromone, self.tau_min, self.tau_max)
 
     def reached_destination(self):
         r""" Returns if the ant has reached the destination node in the graph

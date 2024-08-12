@@ -21,6 +21,7 @@ def convert_to_nx(times, machines, n_jobs, n_machines, **kwargs):
         print(f'jobs={n_jobs}, machines={n_machines}')
     # Conjunctive graph (directed)
     dep_graph = nx.DiGraph()
+
     dep_graph.add_node('s', duration=0)
     dep_graph.add_node('t', duration=0)
     for job, step in itertools.product(range(n_jobs), range(n_machines)):

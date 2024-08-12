@@ -88,6 +88,7 @@ class DGProblem(Problem):
         return max(node_dist.values())
 
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--problem', type=str, default="ft")
@@ -114,6 +115,7 @@ def main():
     # machines = np.array([[1, 2, 3], [1, 3, 2], [2, 3, 1]]) - 1
 
     # case2: random jobs (n=10, m=8)
+
     # n = 20
     # m = 10
     # times = np.random.randint(1, 10, (n, m))
