@@ -16,19 +16,17 @@ class Task(object):
         * s_time: start time
         * f_time: finish time = s_time + p_time
     """
-    # TODO: refine the args for the Task class
 
-    def __init__(
-            self,
-            name,
-            pos,
-            p_time=0,
-            m_id=-1,
-            scheduled=True,
-            color="tab:gray",
-            job=-1,
-            start_time=None,
-            finish_time=None):
+    def __init__(self,
+                 name,
+                 pos,
+                 p_time=0,
+                 m_id=-1,
+                 scheduled=True,
+                 color="tab:gray",
+                 job=-1,
+                 start_time=None,
+                 finish_time=None):
         r""" Initialize the task
 
         Args:
@@ -65,30 +63,47 @@ class DisjunctiveGraph(object):
         max_job_length (int): maximum length of a job in the disjunctive graph.
     """
 
-    def __init__(self, jobs, c_map="gist_rainbow"):
+    def __init__(self, jobs=None, times=None, machines=None, c_map="gist_rainbow"):
         r""" Initialize the disjunctive graph.
 
         Args:
-            jobs (list): list of jobs where each job is a list of tasks.
+            jobs (np.ndarray): array of jobs where each job is a list of tasks.
                 Each task is a list of two elements: machine id and processing time.
+            times (np.ndarray): array of processing times for each job.
+            machines (np.ndarray): array of machine ids for each job.
             c_map (str): colormap for the machines.
                 See also: https://matplotlib.org/stable/tutorials/colors/colormaps.html
 
         Example:
             ```
             jobs = [[[0, 1], [1, 2], [2, 3]],
-                    [[1, 2], [0, 3]],
+                    [[1, 2], [0, 3], [2, 0]],
                     [[2, 2], [0, 1], [1, 2]]]
             dg = DisjunctiveGraph(jobs=jobs)
             dg.draw_graph()
             ```
+
+        Notes:
+            - machine id starts from 0
+            - processing time is a positive value
+
         """
-        if isinstance(jobs, list):
+        if jobs is not None:
+            if isinstance(jobs, list):
+                # convert the list into numpy
+                jobs = np.array(jobs)
+            elif not isinstance(jobs, np.ndarray):
+                raise ValueError("Invalid input type for jobs. Expected list or numpy.ndarray.")
+
+            self.times = jobs[:, :, 1]
+            self.machines = jobs[:, :, 0]
             self.jobs = jobs
-        elif isinstance(jobs, np.ndarray):
-            # TODO: handle the np.ndarray inputs
-            # convert the numpy into list, remove the node with 0 processing time
-            raise NotImplementedError
+        elif times is not None and machines is not None:
+            self.times = times
+            self.machines = machines
+            self.jobs = np.array([[(machines[i][j], times[i][j])
+                                   for j in range(machines.shape[1])]
+                                 for i in range(machines.shape[0])])
         else:
             raise ValueError("Invalid input type for jobs. Expected list or numpy.ndarray.")
 
@@ -151,13 +166,14 @@ class DisjunctiveGraph(object):
         r""" Process jobs to create disjunctive graph (hybrid conjunctive and disjunctive graph).
 
         - create source node
-        - create task nodes
         - create target node
-        - create ConjGraph
+        - create task nodes
+        - create conjunctive edges
           - from source to first task of each job
           - from last task of each job to target
-        - create DisjGraph
-          - add disjunctive edges between tasks if tasks are on the same machine
+          - from task i-1 to task i of each job
+        - create disjunctive edges
+          - add bidirectional disjunctive edges between tasks if tasks are on the same machine
         """
 
         # prepare colors for machines, select the desired colormap
@@ -167,56 +183,50 @@ class DisjunctiveGraph(object):
         # map the numbers to colors
         self._machine_colors = {m_id: c_map(val) for m_id, val in enumerate(c_machines)}
 
-        ''' build the conjunctive graph '''
+        ''' initiate the conjunctive graph '''
         # add dummy `source` node
-        self.ConjGraph.add_node(
-            "S",
-            j_id=-1,
-            t_id=-1,
-            m_id=-1,
-            p_time=0,
-            # scheduled=True,
-            start_time=0,
-            finish_time=0,
-            pos=(-1, (self.n_jobs - 1) / 2),
-            color="tab:gray",
-        )
+        self.ConjGraph.add_node("S",
+                                j_id=-1,
+                                t_id=-1,
+                                m_id=-1,
+                                p_time=0,
+                                start_time=0,
+                                finish_time=0,
+                                pos=(-1, (self.n_jobs - 1) / 2),
+                                color="tab:gray",
+                                )
 
         # create task nodes
         for j_id, job in enumerate(self.jobs):
             t_id = 0
             interval = (self.max_job_length - 1) / (len(job) - 1)
             for m, p in job:
-                self.ConjGraph.add_node(
-                    f"J_{j_id}_{t_id}",
-                    j_id=j_id,
-                    t_id=t_id,
-                    m_id=m,
-                    p_time=p,
-                    # scheduled=False,
-                    start_time=None,
-                    finish_time=None,
-                    pos=(t_id * interval, j_id),
-                    color=self._machine_colors[m],
-
-                )
+                self.ConjGraph.add_node(f"J_{j_id}_{t_id}",
+                                        j_id=j_id,
+                                        t_id=t_id,
+                                        m_id=m,
+                                        p_time=p,
+                                        start_time=None,
+                                        finish_time=None,
+                                        pos=(t_id * interval, j_id),
+                                        color=self._machine_colors[m],
+                                        )
                 t_id += 1
 
         # add dummy `target` node
-        self.ConjGraph.add_node(
-            "T",
-            j_id=-1,
-            t_id=-1,
-            p_time=0,
-            m_id=-1,
-            # scheduled=True,
-            job=-1,
-            start_time=None,
-            finish_time=None,
-            pos=(self.max_job_length, (self.n_jobs - 1) / 2),
-            color="tab:gray",
-        )
+        self.ConjGraph.add_node("T",
+                                j_id=-1,
+                                t_id=-1,
+                                p_time=0,
+                                m_id=-1,
+                                job=-1,
+                                start_time=None,
+                                finish_time=None,
+                                pos=(self.max_job_length, (self.n_jobs - 1) / 2),
+                                color="tab:gray",
+                                )
 
+        ''' build the conjunctive edges '''
         # add source to first task of each job
         for j_id, job in enumerate(self.jobs):
             self.ConjGraph.add_edge("S",
@@ -232,7 +242,6 @@ class DisjunctiveGraph(object):
                                         weight=0,
                                         assigned=True,
                                         type="conjunctive")
-
         # add last task of each job to target
         for j_id, job in enumerate(self.jobs):
             self.ConjGraph.add_edge(f"J_{j_id}_{len(job)-1}",
@@ -242,8 +251,7 @@ class DisjunctiveGraph(object):
                                     type="conjunctive")
 
         ''' build the disjunctive edges '''
-
-        # NOTE: add edges between tasks on the same machine
+        # NOTE: add bidirectional edges between tasks on the same machine
         for m, tasks in self.machine_tasks.items():
             # add pair wise edges among tasks
             for i in range(len(tasks)):
@@ -263,6 +271,16 @@ class DisjunctiveGraph(object):
 
     def draw_graph(self, conjunctive=True, disjunctive=False, edge_status=False):
         r""" Draw the disjunctive graph
+
+        Args:
+            conjunctive (bool): draw conjunctive edges or not.
+            disjunctive (bool): draw disjunctive edges or not.
+            edge_status (bool): show pheromone values on the edges or not.
+
+        Example:
+            ```
+            dg.draw_graph(conjunctive=True, disjunctive=True, edge_status=True)
+            ```
         """
 
         # TODO: specify the figsize from arg, if not assigned, use the default value
@@ -317,21 +335,23 @@ class DisjunctiveGraph(object):
             all_edges = nx.get_edge_attributes(self.ConjGraph, "pheromones")
 
             # Separate edges into conjunctive and disjunctive
-            conjunctive_edges = {edge: attrs for edge, attrs in all_edges.items(
-            ) if self.ConjGraph.edges[edge]['type'] == 'conjunctive'}
-            disjunctive_edges = {edge: attrs for edge, attrs in all_edges.items(
-            ) if self.ConjGraph.edges[edge]['type'] == 'disjunctive'}
+            conjunctive_edges = {edge: attrs for edge, attrs in all_edges.items()
+                                 if self.ConjGraph.edges[edge]['type'] == 'conjunctive'}
+            disjunctive_edges = {edge: attrs for edge, attrs in all_edges.items()
+                                 if self.ConjGraph.edges[edge]['type'] == 'disjunctive'}
 
             # Draw labels for conjunctive edges
-            nx.draw_networkx_edge_labels(self.ConjGraph, pos, edge_labels=conjunctive_edges, font_size=8)
+            nx.draw_networkx_edge_labels(self.ConjGraph,
+                                         pos,
+                                         edge_labels=conjunctive_edges,
+                                         font_size=8)
 
             # Draw labels for disjunctive edges with connectionstyle
-            nx.draw_networkx_edge_labels(
-                self.ConjGraph,
-                pos,
-                edge_labels=disjunctive_edges,
-                font_size=8,
-                connectionstyle="arc3,rad=0.1")
+            nx.draw_networkx_edge_labels(self.ConjGraph,
+                                         pos,
+                                         edge_labels=disjunctive_edges,
+                                         font_size=8,
+                                         connectionstyle="arc3,rad=0.1")
 
     def set_edge_pheromones(self, u, v, type="conjunctive", pheromone_value=1e-10):
         r""" Set pheromone value on the edge (u, v)
@@ -370,14 +390,23 @@ class DisjunctiveGraph(object):
     def get_edge_cost(self, u, v):
         r""" Get cost of the edge (u, v), the cost is the processing time needed for node v.
 
+        Args:
+            u (str): source node
+            v (str): destination node
+
         Notes:
-            * Cost of the edge (u, v) can be an extended version of disjunctive graph for resilient job shop scheduling problem, including but not limited to: networking, delay, processing time, etc.
-            * Add edge processing time to the node.
+            - Cost of the edge (u, v) can be an extended version of disjunctive graph for resilient job shop scheduling
+              problem, including but not limited to: networking, delay, processing time, etc.
+            - Add edge processing time to the node.
         """
-        return self.ConjGraph.nodes[v]['p_time']
+        if (u, v) in self.ConjGraph.edges():
+            return self.ConjGraph.edges[(u, v)]['p_time']
+        else:
+            raise ValueError(f"No edge between {u} and {v} in the graph.")
 
     def get_neighbors(self, node):
-        r""" Get candidates neighbors from node, including the successor in conjunctive graph and neighbors in disjunctive graph
+        r""" Get candidates neighbors from node,
+        including the successor in conjunctive nodes and neighbors in disjunctive nodes
 
         Args:
             node (str): node name
@@ -385,7 +414,6 @@ class DisjunctiveGraph(object):
         Returns:
             list: list of neighbors of the node
         """
-        # return list(self.ConjGraph.neighbors(node)) + list(self.DisjGraph.neighbors(node))
         return list(self.ConjGraph.neighbors(node))
 
     def creates_cycle(self, current, node):

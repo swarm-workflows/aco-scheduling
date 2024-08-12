@@ -1,12 +1,13 @@
 
 import random
+from copy import deepcopy
+
+import matplotlib.pyplot as plt
+import networkx as nx
+import numpy as np
 
 from .ant import Ant
 from .disjunctive_graph import DisjunctiveGraph
-from copy import deepcopy
-import networkx as nx
-import numpy as np
-import matplotlib.pyplot as plt
 
 
 class ACO(object):
@@ -54,11 +55,11 @@ class ACO(object):
         # after getting the DAG, calculate the final solution based on
         #  `s_v + p_v = f_v, s_v = max_{u->v}(f_u)`
 
-
         # send out ants to search for the destination node
         self._deploy_search_ants(source, target, num_ants)
 
-        # NOTE: solution_ant's path is a shortest path from S to T rather than a full schedule, so it is not used currently.
+        # NOTE: solution_ant's path is a shortest path from S to T rather than a
+        # full schedule, so it is not used currently.
         solution_ant = self._deploy_solution_ant(source, target)
 
         dag = self.build_dag()
@@ -66,8 +67,8 @@ class ACO(object):
         print(dag)
         if not nx.is_directed_acyclic_graph(dag):
             return None, np.inf
- 
-        #algorithm to calculate makespan with respect to precedence and machine constraints
+
+        # algorithm to calculate makespan with respect to precedence and machine constraints
         node_dist = {}
         for node in nx.topological_sort(dag):
             node_w = dag.nodes[node]['p_time']
@@ -78,7 +79,7 @@ class ACO(object):
             node_dist[node] = node_w
 
         makespan = max(node_dist.values())
-        
+
         return solution_ant.path, makespan
 
     def build_dag(self):
@@ -90,7 +91,7 @@ class ACO(object):
 
         edges = deepcopy(dag.edges)
 
-        #Remove disjunctive edges from the graph
+        # Remove disjunctive edges from the graph
         for idx, _ in enumerate(edges):
             start, end = _
             if dag._adj[start][end]['type'] == 'disjunctive':
@@ -98,19 +99,19 @@ class ACO(object):
 
         assert isinstance(dag, nx.DiGraph)
 
-        #Add disjunctive edges back to the graph
-        for idx, node in enumerate(adjList): #source and target nodes have no disjunctive edges
+        # Add disjunctive edges back to the graph
+        for idx, node in enumerate(adjList):  # source and target nodes have no disjunctive edges
             if node == 'S' or node == 'T':
                 continue
-            
+
             disjunctive_edges = dict(node for node in adjList[node].items() if node[1]['type'] == 'disjunctive')
 
-            #For disjunctives edges (u->v) and (v->u), only add disj edge with higher pheromone value
+            # For disjunctives edges (u->v) and (v->u), only add disj edge with higher pheromone value
             for task in disjunctive_edges:
 
                 edge_pheromone = adjList[node][task]['pheromones']
                 reverse_edge_pheromone = adjList[task][node]['pheromones']
-                
+
                 if edge_pheromone > reverse_edge_pheromone:
                     dag.add_edge(node, task)
                     if nx.is_directed_acyclic_graph(dag):
@@ -124,12 +125,12 @@ class ACO(object):
                     else:
                         dag.remove_edge(task, node)
         return dag
-    
+
     def draw_networks(self, g1, g2=None):
         with plt.style.context('ggplot'):
             pos = nx.spring_layout(g1, seed=7)
-            #pos = nx.kamada_kawai_layout(g1)
-            #pos=0
+            # pos = nx.kamada_kawai_layout(g1)
+            # pos=0
             nx.draw_networkx_nodes(g1, pos, node_size=7)
             nx.draw_networkx_labels(g1, pos)
             nx.draw_networkx_edges(g1, pos, arrows=True)
