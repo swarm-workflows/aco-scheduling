@@ -9,6 +9,12 @@ class Task(object):
     r""" Task representation for JSP
 
     * For each task, (j_id, t_id, m_id, p_time, s_time, f_time)
+        * j_id: job id
+        * t_id: task id
+        * m_id: machine id
+        * p_time: processing time
+        * s_time: start time
+        * f_time: finish time = s_time + p_time
     """
     # TODO: refine the args for the Task class
 
