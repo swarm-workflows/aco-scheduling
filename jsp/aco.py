@@ -15,7 +15,7 @@ class ACO(object):
                  graph=None,
                  ant_max_steps=100,
                  num_iterations=100,
-                 ant_random_init=True,
+                 ant_random_init=False,
                  evaporation_rate=0.5,
                  alpha=0.7,
                  beta=0.3):
@@ -28,6 +28,8 @@ class ACO(object):
         self.alpha = alpha
         self.beta = beta
         self.search_ants = []
+        self.best_sol = None
+        self.best_makespan = np.inf
 
         for edge in self.graph.ConjGraph.edges():
             self.graph.set_edge_pheromones(edge[0], edge[1])
@@ -35,7 +37,7 @@ class ACO(object):
         # for edge in self.graph.DisjGraph.edges():
         #     self.graph.set_edge_pheromones(edge[0], edge[1], "disjunctive", 1.0)
 
-    def find_minimum_makespan(self, source, target, num_ants, **kwargs):
+    def calculate_makespan(self, dag, **kwargs):
         r""" Find the minimum makespan from the source to the target node in the graph
 
         Args:
@@ -55,15 +57,6 @@ class ACO(object):
         #  `s_v + p_v = f_v, s_v = max_{u->v}(f_u)`
 
 
-        # send out ants to search for the destination node
-        self._deploy_search_ants(source, target, num_ants)
-
-        # NOTE: solution_ant's path is a shortest path from S to T rather than a full schedule, so it is not used currently.
-        solution_ant = self._deploy_solution_ant(source, target)
-
-        dag = self.build_dag()
-
-        print(dag)
         if not nx.is_directed_acyclic_graph(dag):
             return None, np.inf
  
@@ -79,13 +72,13 @@ class ACO(object):
 
         makespan = max(node_dist.values())
         
-        return solution_ant.path, makespan
+        return makespan
 
-    def build_dag(self):
+    def build_dag(self, graph):
         """ Create a directed acyclic graph so that makespan of schedule can be calculated.
         """
 
-        dag = self.graph.ConjGraph.copy()
+        dag = graph.ConjGraph.copy()
         adjList = deepcopy(dag._adj)
 
         edges = deepcopy(dag.edges)
@@ -93,7 +86,7 @@ class ACO(object):
         #Remove disjunctive edges from the graph
         for idx, _ in enumerate(edges):
             start, end = _
-            if dag._adj[start][end]['type'] == 'disjunctive':
+            if adjList[start][end]['type'] == 'disjunctive':
                 dag.remove_edge(start, end)
 
         assert isinstance(dag, nx.DiGraph)
@@ -162,8 +155,21 @@ class ACO(object):
                           beta=self.beta)
                 self.search_ants.append(ant)
 
+            #Send num_ants out to explore the graph
             self._deploy_forward_search_ants()
+            #Send ants that reached target backwards to deposit pheromones
             self._deploy_backward_search_ants()
+
+            #Find solutions on each iteration of ants crawling
+            curr_sol = self.build_dag(self.graph)
+            curr_makespan = self.calculate_makespan(curr_sol)
+
+            #Keep best solution
+            if curr_makespan < self.best_makespan:
+                self.best_sol = curr_sol
+                self.best_makespan = curr_makespan
+
+        return curr_sol
 
     def _deploy_solution_ant(self, source, target):
         r"""Deploy the pheromone-greedy solution to find minimum makespan
@@ -191,6 +197,9 @@ class ACO(object):
                 if ant.reached_destination():
                     # print(ant.path, ant.visited_nodes)
                     print(f"Ant {ant_id}", ant.path)
+                    #ant_graph = self.build_dag(ant.graph)
+                    #ant.makespan = self.calculate_makespan(ant_graph)
+                    #print(f"Ant {ant_id} {ant.path} {ant.makespan}")
                     ant.is_fit = True
                     break
                 ant.take_step(step)

@@ -42,6 +42,9 @@ class Ant(object):
         self.is_solution_ant = is_solution_ant
         self.current_node = self.source
         self.path.append(self.source)
+        self.makespan = 0
+        self.tau_min = .0001
+        self.tau_max = 1
 
     def deposit_pheromones_on_path(self):
         r""" Deposit pheromones on the path taken by the ant
@@ -54,6 +57,9 @@ class Ant(object):
             u, v = self.path[i], self.path[i + 1]
             # path_cost= 0
             new_pheromone_val = 1 / self.path_cost if self.path_cost != 0 else 1
+
+            #new_pheromone_val = np.clip(new_pheromone_val, self.tau_min, self.tau_max)
+
             self.deposit_pheromones(u, v, new_pheromone_val)
 
     def deposit_pheromones(self, u, v, pheromone_amount):
@@ -72,22 +78,9 @@ class Ant(object):
         if self.graph.ConjGraph.has_edge(u, v):
             self.graph.ConjGraph[u][v]["pheromones"] = (1 - self.evaporation_rate) * \
                 self.graph.ConjGraph[u][v]["pheromones"] + pheromone_amount
-        elif self.graph.DisjGraph.has_edge(u, v):
-            self.graph.DisjGraph[u][v]["pheromones"] = (1 - self.evaporation_rate) * \
-                self.graph.DisjGraph[u][v]["pheromones"] + pheromone_amount
+            self.graph.ConjGraph[u][v]["pheromones"] = np.clip(self.graph.ConjGraph[u][v]["pheromones"], self.tau_min, self.tau_max)
         else:
             raise ValueError(f"No edge between {u} and {v} in either graph.")
-        
-    def max_min_update_pheromones(self, best_solution):
-        '''TODO: Implement max_min pheromone values properly.
-        Need 'best_cost' aka best makespan. Find 'best_cost' by creating a dag and calculating makespan after 1 iteration of 100 ants.
-        '''
-        self.pheromone *= (1 - self.rho)
-        for machine, tasks in best_solution.items():
-            for job, operation, start_time, finish_time in tasks:
-                self.pheromone[job][machine] += 1.0 / self.best_cost
-
-        self.pheromone = np.clip(self.pheromone, self.tau_min, self.tau_max)
 
     def reached_destination(self):
         r""" Returns if the ant has reached the destination node in the graph

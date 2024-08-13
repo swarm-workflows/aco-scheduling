@@ -21,6 +21,7 @@ from jsp.disjunctive_graph import DisjunctiveGraph
 from benchmark.utils import read_file
 from ortools_api import ortools_api
 from utils import convert_to_nx, plot_aco_vs_ortools
+from pytictoc import TicToc
 
 def main():
     parser = argparse.ArgumentParser()
@@ -68,7 +69,19 @@ def main():
     g1, g2 = convert_to_nx(times, machines, n, m)
     p = DisjunctiveGraph(jobs=jobs)
     model = ACO(graph=p)
-    best_path, best_makespan = model.find_minimum_makespan(source='S',target='T', num_ants=100)
+
+    t = TicToc()
+    t.tic()
+    ### Path/makespan found from 'final solution'
+    path = model._deploy_search_ants(source='S',target='T', num_ants=100)
+    makespan = model.calculate_makespan(path)
+
+    ### Best path/makespan found from ant searches
+    best_makespan = model.best_makespan
+    best_path = model.best_sol
+    t.toc()
+    print(f'path: {path},  makespan: {makespan}')
+
     print(f"ACO - best solution\npath: {best_path}, makespan: {best_makespan}")
 
     # solve the problem in ortools
