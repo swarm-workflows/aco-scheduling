@@ -21,16 +21,15 @@ def convert_to_nx(times, machines, n_jobs, n_machines, **kwargs):
         print(f'jobs={n_jobs}, machines={n_machines}')
     # Conjunctive graph (directed)
     dep_graph = nx.DiGraph()
-    dep_graph.add_node('s', duration=0, start=0, end=0)
-    dep_graph.add_node('t', duration=0, start=0, end=0)
+
+    dep_graph.add_node('s', duration=0)
+    dep_graph.add_node('t', duration=0)
     for job, step in itertools.product(range(n_jobs), range(n_machines)):
         machine = machines[job][step]
         prev_machine = machines[job][step - 1] if step > 0 else None
         duration = times[job][step]
-        start = 0
-        end = 0
         # node in ConjGraph: (job, machine)
-        dep_graph.add_node((job, machine), duration=duration, start=start, end=end)
+        dep_graph.add_node((job, machine), duration=duration)
         # edge in ConjGraph: (job, prev_machine) -> (job, machine)
         if prev_machine is not None:
             dep_graph.add_edge((job, prev_machine), (job, machine))
