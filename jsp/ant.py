@@ -53,7 +53,7 @@ class Ant(object):
         for i in range(len(self.path) - 1):
             u, v = self.path[i], self.path[i + 1]
             # path_cost= 0
-            new_pheromone_val = 1 / self.path_cost if self.path_cost != 0 else 1
+            new_pheromone_val = 1 / self.path_cost if self.path_cost != 0 else 0
             self.deposit_pheromones(u, v, new_pheromone_val)
 
     def deposit_pheromones(self, u, v, pheromone_amount):
@@ -69,15 +69,12 @@ class Ant(object):
 
             NOTE: Soon to be replaced by max_min_update_pheromones
         """
-        if self.graph.ConjGraph.has_edge(u, v):
-            self.graph.ConjGraph[u][v]["pheromones"] = (1 - self.evaporation_rate) * \
-                self.graph.ConjGraph[u][v]["pheromones"] + pheromone_amount
-        elif self.graph.DisjGraph.has_edge(u, v):
+        if self.graph.DisjGraph.has_edge(u, v):
             self.graph.DisjGraph[u][v]["pheromones"] = (1 - self.evaporation_rate) * \
                 self.graph.DisjGraph[u][v]["pheromones"] + pheromone_amount
         else:
             raise ValueError(f"No edge between {u} and {v} in either graph.")
-        
+
     def max_min_update_pheromones(self, best_solution):
         '''TODO: Implement max_min pheromone values properly.
         Need 'best_cost' aka best makespan. Find 'best_cost' by creating a dag and calculating makespan after 1 iteration of 100 ants.
@@ -103,40 +100,34 @@ class Ant(object):
         Args:
             step (int): step number
 
+        Notes:
+          - The ant moves to the next node in the graph based on the probabilities of the unvisited neighbors
+          - The ant updates the path and path cost
+          - DAG constraints are checked when choosing the next node
         """
         # print(self.path, end="\t")
         if self.reached_destination():
             return None
         # mark current node as visited
-        # DEBUG: self.visited_nodes has {'J_1_1', 'J_0_0', 'J_2_0', 'J_1_2', 'S', 'J_1_0', 'J_2_1', 'J_0_2', 'J_0_1'} ?
         self.visited_nodes.add(self.current_node)
-
         # pick the next node for the ant
         next_node = self._choose_next_node()
         # check if ant is stuck at current node
         if not next_node:
             return
 
-        # TODO: check DAG, DAG check is done when choose next node
-        # if edge exists in DisjGraph, add edge to ConjGraph, and check DAG,
-        # if it's not a DAG, remove edge from ConjGraph, and pick another next_node
-
         # update path
-
         self.path.append(next_node)
         # update path cost
-        self.path_cost += self.graph.ConjGraph.nodes[self.current_node]["p_time"]
+        self.path_cost += self.graph.DisjGraph.nodes[self.current_node]["p_time"]
         # update start time of next node
-        # TODO: Double check, update the s_time of the node, take min of current
-        self.graph.ConjGraph.nodes[next_node]["s_time"] = min(self.graph.ConjGraph.nodes[next_node].get("s_time", 0),
-                                                              self.path_cost)
-
+        # # TODO: Double check, update the s_time of the node, take min of current
+        # NOTE: no need to update the s_time
+        # self.graph.DisjGraph.nodes[next_node]["s_time"] = min(self.graph.DisjGraph.nodes[next_node].get("s_time", 0),
+        #                                                       self.path_cost)
         # print(f"ant {self.current_node} -> {next_node}")
         # update current node
         self.current_node = next_node
-        if next_node == "T":
-            pass
-        # print(f"next node {self.current_node}")
 
     def _choose_next_node(self):
         r""" Choose the next node based on the probabilities of the unvisited neighbors
@@ -170,15 +161,17 @@ class Ant(object):
             return
 
             # for node in candidate_node:
-            #     # if add (current, node) to conjgraph result cycles, then skip
+            #     # if add (current, node) to DisjGraph result cycles, then skip
             #     if not self.graph.creates_cycle(self.current_node, node):
             #         return node
-            #         # self.graph.conjgraph.add_edge(self.current_node, node)
+            #         # self.graph.DisjGraph.add_edge(self.current_node, node)
             #         # break
 
         else:
-            probbabilities = self._calculate_edge_probabilities(unvisited_neighbors)
-            return self._roulette_wheel_selection(probbabilities)
+            prob = self._calculate_edge_probabilities(unvisited_neighbors)
+            print(self.current_node, prob)
+            return random.choices(list(prob.keys()), weights=list(prob.values()), k=1)[0]
+            # return self._roulette_wheel_selection(prob)
 
     def _get_unvisited_neighbors(self):
         r"""Get unvisited neighbors of the current node
@@ -198,6 +191,10 @@ class Ant(object):
         r""" Calculate the probabilities of the unvisited neighbors of the current node
 
         .. math::
+            heuristic = 1 / edge_cost
+            prob = pheromone ** alpha * heuristic ** beta
+            prob = prob / sum(prob)
+
             prob_{u, v}(t) = \frac{d_{u, v}}{\sum_{s \in N(u)} d_{u, s}}
 
         Args:
@@ -210,12 +207,11 @@ class Ant(object):
         all_edges_desirability = 0.0
 
         # calculate disireability per each edge
+        # TODO: improve the implementation more efficiently -> vectorize
         for neighbor in unvisited_neighbors:
-            # only calculate the node unvi
+            # only calculate the node unvisited
             if neighbor not in self.path:
-                edge_pheromones = self.graph.get_edge_pheromones(
-                    self.current_node, neighbor
-                )
+                edge_pheromones = self.graph.get_edge_pheromones(self.current_node, neighbor)
                 edge_cost = self.graph.get_edge_cost(self.current_node, neighbor)
 
                 current_edge_desirability = self.compute_edge_desireability(
@@ -228,7 +224,7 @@ class Ant(object):
 
         # if only T is unvisited, set prob to be 1
         if all_edges_desirability == 0:
-            for neighbors in unvisited_neighbors:
+            for neighbor in unvisited_neighbors:
                 probabilities[neighbor] = 1
             return probabilities
 
@@ -277,7 +273,6 @@ class Ant(object):
         See Also:L
             * fitness proportionate selection: https://en.wikipedia.org/wiki/Fitness_proportionate_selection
         """
-        # TODO: pick node proportional to its prob
         sorted_probabilities = {
             k: v for k, v in sorted(probabilities.items(), key=lambda item: -item[1])
         }

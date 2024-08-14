@@ -5,6 +5,7 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from torch import R
 
 from .ant import Ant
 from .disjunctive_graph import DisjunctiveGraph
@@ -30,11 +31,9 @@ class ACO(object):
         self.beta = beta
         self.search_ants = []
 
-        for edge in self.graph.ConjGraph.edges():
+        # initialize pheromones on the graph, including both conj and disj edges
+        for edge in self.graph.DisjGraph.edges():
             self.graph.set_edge_pheromones(edge[0], edge[1])
-            # self.graph.set_edge_pheromones(edge[0], edge[1], "disjunctive")
-        # for edge in self.graph.DisjGraph.edges():
-        #     self.graph.set_edge_pheromones(edge[0], edge[1], "disjunctive", 1.0)
 
     def find_minimum_makespan(self, source, target, num_ants, **kwargs):
         r""" Find the minimum makespan from the source to the target node in the graph
@@ -58,13 +57,12 @@ class ACO(object):
         # send out ants to search for the destination node
         self._deploy_search_ants(source, target, num_ants)
 
-        # NOTE: solution_ant's path is a shortest path from S to T rather than a
-        # full schedule, so it is not used currently.
+        # retrieve the solution ant
         solution_ant = self._deploy_solution_ant(source, target)
 
-        dag = self.build_dag()
+        # dag = self.build_dag()
 
-        print(dag)
+        # print(dag)
         if not nx.is_directed_acyclic_graph(dag):
             return None, np.inf
 
@@ -83,10 +81,9 @@ class ACO(object):
         return solution_ant.path, makespan
 
     def build_dag(self):
-        """ Create a directed acyclic graph so that makespan of schedule can be calculated.
-        """
+        r""" Create a directed acyclic graph so that makespan of schedule can be calculated. """
 
-        dag = self.graph.ConjGraph.copy()
+        dag = self.graph.DisjGraph.copy()
         adjList = deepcopy(dag._adj)
 
         edges = deepcopy(dag.edges)
@@ -127,6 +124,12 @@ class ACO(object):
         return dag
 
     def draw_networks(self, g1, g2=None):
+        r""" Draw the networkx graph
+
+        Args:
+            g1 (nx.Graph): The networkx graph to be drawn
+            g2 (nx.Graph): The networkx graph to be drawn
+        """
         with plt.style.context('ggplot'):
             pos = nx.spring_layout(g1, seed=7)
             # pos = nx.kamada_kawai_layout(g1)
@@ -148,11 +151,13 @@ class ACO(object):
             destination(str): The destination node in the graph
             num_ants(int): The number of ants to be inited
         """
-        for _ in range(self.num_iterations):
+        for iter in range(self.num_iterations):
             self.search_ants = []
+            print(f"Iter {iter}:", end=" ")
 
-            for iter in range(num_ants):
-                init_point = random.choice(list(self.graph.ConjGraph.nodes)) if self.ant_random_init else source
+            for ant_idx in range(num_ants):
+                # deploy ant randomly on disjunctive graph
+                init_point = random.choice(list(self.graph.DisjGraph.nodes)) if self.ant_random_init else source
 
                 ant = Ant(self.graph,
                           init_point,
@@ -163,7 +168,9 @@ class ACO(object):
                           beta=self.beta)
                 self.search_ants.append(ant)
 
+            # move ants in the graph
             self._deploy_forward_search_ants()
+            # update pheromones on the graph
             self._deploy_backward_search_ants()
 
     def _deploy_solution_ant(self, source, target):
@@ -185,7 +192,11 @@ class ACO(object):
         return ant
 
     def _deploy_forward_search_ants(self):
-        r""" Deploy forward search ants in the graph
+        r""" Deploy forward search ants in the graph.
+
+        Notes:
+          - For each ant, it moves to the next node in the graph
+            until the ant reaches the destination node or the maximum number of steps is reached
         """
         for ant_id, ant in enumerate(self.search_ants):
             for step in range(self.ant_max_steps):
@@ -194,7 +205,8 @@ class ACO(object):
                     print(f"Ant {ant_id}", ant.path)
                     ant.is_fit = True
                     break
-                ant.take_step(step)
+                else:
+                    ant.take_step(step)
 
     def _deploy_backward_search_ants(self):
         r""" Deploy fit search ants back towards their source node while dropping pheromones on the path

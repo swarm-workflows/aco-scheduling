@@ -107,9 +107,7 @@ class DisjunctiveGraph(object):
         else:
             raise ValueError("Invalid input type for jobs. Expected list or numpy.ndarray.")
 
-        self.ConjGraph = nx.DiGraph()
-        # remove the disjunctive graph
-        # self.DisjGraph = nx.Graph()
+        self.DisjGraph = nx.DiGraph()
         self.c_map = c_map
         self._process_jobs()
 
@@ -185,7 +183,7 @@ class DisjunctiveGraph(object):
 
         ''' initiate the conjunctive graph '''
         # add dummy `source` node
-        self.ConjGraph.add_node("S",
+        self.DisjGraph.add_node("S",
                                 j_id=-1,
                                 t_id=-1,
                                 m_id=-1,
@@ -201,7 +199,7 @@ class DisjunctiveGraph(object):
             t_id = 0
             interval = (self.max_job_length - 1) / (len(job) - 1)
             for m, p in job:
-                self.ConjGraph.add_node(f"J_{j_id}_{t_id}",
+                self.DisjGraph.add_node(f"J_{j_id}_{t_id}",
                                         j_id=j_id,
                                         t_id=t_id,
                                         m_id=m,
@@ -214,7 +212,7 @@ class DisjunctiveGraph(object):
                 t_id += 1
 
         # add dummy `target` node
-        self.ConjGraph.add_node("T",
+        self.DisjGraph.add_node("T",
                                 j_id=-1,
                                 t_id=-1,
                                 p_time=0,
@@ -229,7 +227,7 @@ class DisjunctiveGraph(object):
         ''' build the conjunctive edges '''
         # add source to first task of each job
         for j_id, job in enumerate(self.jobs):
-            self.ConjGraph.add_edge("S",
+            self.DisjGraph.add_edge("S",
                                     f"J_{j_id}_0",
                                     weight=0,
                                     assigned=True,
@@ -237,14 +235,14 @@ class DisjunctiveGraph(object):
         # add conjunctive edges from task i-1 to task i of each job
         for j_id, job in enumerate(self.jobs):
             for i in range(1, len(job)):
-                self.ConjGraph.add_edge(f"J_{j_id}_{i-1}",
+                self.DisjGraph.add_edge(f"J_{j_id}_{i-1}",
                                         f"J_{j_id}_{i}",
                                         weight=0,
                                         assigned=True,
                                         type="conjunctive")
         # add last task of each job to target
         for j_id, job in enumerate(self.jobs):
-            self.ConjGraph.add_edge(f"J_{j_id}_{len(job)-1}",
+            self.DisjGraph.add_edge(f"J_{j_id}_{len(job)-1}",
                                     "T",
                                     weight=0,
                                     assigned=True,
@@ -257,13 +255,13 @@ class DisjunctiveGraph(object):
             for i in range(len(tasks)):
                 for j in range(i + 1, len(tasks)):
                     # u -> v
-                    self.ConjGraph.add_edge(f"J_{tasks[i][0]}_{tasks[i][1]}",
+                    self.DisjGraph.add_edge(f"J_{tasks[i][0]}_{tasks[i][1]}",
                                             f"J_{tasks[j][0]}_{tasks[j][1]}",
                                             weight=0,
                                             assigned=False,
                                             type="disjunctive")
                     # v -> u
-                    self.ConjGraph.add_edge(f"J_{tasks[j][0]}_{tasks[j][1]}",
+                    self.DisjGraph.add_edge(f"J_{tasks[j][0]}_{tasks[j][1]}",
                                             f"J_{tasks[i][0]}_{tasks[i][1]}",
                                             weight=0,
                                             assigned=False,
@@ -287,24 +285,24 @@ class DisjunctiveGraph(object):
         # plt.figure(figsize=(self.max_job_length, self.n_jobs / 4),
         #            tight_layout=True,
         #            dpi=300)
-        pos = nx.get_node_attributes(self.ConjGraph, 'pos')
+        pos = nx.get_node_attributes(self.DisjGraph, 'pos')
         nx.draw_networkx_nodes(
-            self.ConjGraph,
+            self.DisjGraph,
             pos,
-            node_color=nx.get_node_attributes(self.ConjGraph, 'color').values(),
+            node_color=nx.get_node_attributes(self.DisjGraph, 'color').values(),
             node_size=300)
         nx.draw_networkx_labels(
-            self.ConjGraph,
+            self.DisjGraph,
             pos,
             font_size=8,
-            labels={node: f"{data['m_id']}, {data['p_time']}" for node, data in self.ConjGraph.nodes(data=True)}
+            labels={node: f"{data['m_id']}, {data['p_time']}" for node, data in self.DisjGraph.nodes(data=True)}
         )
 
         # draw conjunctive edges
         if conjunctive:
-            conj_edges = [(u, v) for u, v, d in self.ConjGraph.edges(data=True) if d['type'] == 'conjunctive']
+            conj_edges = [(u, v) for u, v, d in self.DisjGraph.edges(data=True) if d['type'] == 'conjunctive']
             nx.draw_networkx_edges(
-                self.ConjGraph,
+                self.DisjGraph,
                 pos,
                 edgelist=conj_edges,
                 edge_color='k',
@@ -313,12 +311,12 @@ class DisjunctiveGraph(object):
 
         # draw disjunctive edges
         if disjunctive:
-            unassigned_disj_edges = [(u, v) for u, v, d in self.ConjGraph.edges(data=True)
+            unassigned_disj_edges = [(u, v) for u, v, d in self.DisjGraph.edges(data=True)
                                      if d['type'] == 'disjunctive' and not d['assigned']]
-            disj_colors = [self._machine_colors[self.ConjGraph.nodes[u]['m_id']]
+            disj_colors = [self._machine_colors[self.DisjGraph.nodes[u]['m_id']]
                            for u, v in unassigned_disj_edges]
             nx.draw_networkx_edges(
-                self.ConjGraph,
+                self.DisjGraph,
                 pos,
                 edgelist=unassigned_disj_edges,
                 # edge_color='r',
@@ -332,22 +330,22 @@ class DisjunctiveGraph(object):
             # labels = {edge: attrs.get('pheromones', 1)
             #           for edge, attrs in nx.get_edge_attributes(self.ConjGraph, "pheromones").items()}
 
-            all_edges = nx.get_edge_attributes(self.ConjGraph, "pheromones")
+            all_edges = nx.get_edge_attributes(self.DisjGraph, "pheromones")
 
             # Separate edges into conjunctive and disjunctive
-            conjunctive_edges = {edge: attrs for edge, attrs in all_edges.items()
-                                 if self.ConjGraph.edges[edge]['type'] == 'conjunctive'}
-            disjunctive_edges = {edge: attrs for edge, attrs in all_edges.items()
-                                 if self.ConjGraph.edges[edge]['type'] == 'disjunctive'}
+            conjunctive_edges = {edge: f"{attrs:.2f}" for edge, attrs in all_edges.items()
+                                 if self.DisjGraph.edges[edge]['type'] == 'conjunctive'}
+            disjunctive_edges = {edge: f"{attrs:.2f}" for edge, attrs in all_edges.items()
+                                 if self.DisjGraph.edges[edge]['type'] == 'disjunctive'}
 
             # Draw labels for conjunctive edges
-            nx.draw_networkx_edge_labels(self.ConjGraph,
+            nx.draw_networkx_edge_labels(self.DisjGraph,
                                          pos,
                                          edge_labels=conjunctive_edges,
                                          font_size=8)
 
             # Draw labels for disjunctive edges with connectionstyle
-            nx.draw_networkx_edge_labels(self.ConjGraph,
+            nx.draw_networkx_edge_labels(self.DisjGraph,
                                          pos,
                                          edge_labels=disjunctive_edges,
                                          font_size=8,
@@ -362,11 +360,11 @@ class DisjunctiveGraph(object):
             type (str): "conjunctive" or "disjunctive"
             pheromone_value (float): pheromone value to be set on the edge (u, v)
         """
-        if self.ConjGraph.edges[u, v]["type"] == "conjunctive":
-            self.ConjGraph[u][v]["pheromones"] = pheromone_value
-        elif self.ConjGraph.edges[u, v]["type"] == "disjunctive":
-            self.ConjGraph[u][v]["pheromones"] = pheromone_value
-            self.ConjGraph[v][u]["pheromones"] = pheromone_value
+        if self.DisjGraph.edges[u, v]["type"] == "conjunctive":
+            self.DisjGraph[u][v]["pheromones"] = pheromone_value
+        elif self.DisjGraph.edges[u, v]["type"] == "disjunctive":
+            self.DisjGraph[u][v]["pheromones"] = pheromone_value
+            self.DisjGraph[v][u]["pheromones"] = pheromone_value
         else:
             raise ValueError("Invalid type. Expected 'conjunctive' or 'disjunctive'.")
 
@@ -380,10 +378,10 @@ class DisjunctiveGraph(object):
         Returns:
             float: pheromone value on the edge (u, v)
         """
-        if self.ConjGraph.has_edge(u, v):
-            return self.ConjGraph[u][v]["pheromones"]
-        elif self.ConjGraph.has_edge(u, v):
-            return self.ConjGraph[u][v]["pheromones"]
+        if self.DisjGraph.has_edge(u, v):
+            return self.DisjGraph[u][v]["pheromones"]
+        elif self.DisjGraph.has_edge(u, v):
+            return self.DisjGraph[u][v]["pheromones"]
         else:
             raise ValueError(f"No edge between {u} and {v} in either graph.")
 
@@ -399,10 +397,11 @@ class DisjunctiveGraph(object):
               problem, including but not limited to: networking, delay, processing time, etc.
             - Add edge processing time to the node.
         """
-        if (u, v) in self.ConjGraph.edges():
-            return self.ConjGraph.edges[(u, v)]['p_time']
-        else:
-            raise ValueError(f"No edge between {u} and {v} in the graph.")
+        # if (u, v) in self.DisjGraph.edges():
+        #     return self.DisjGraph.edges[(u, v)]['p_time']
+        # else:
+        #     raise ValueError(f"No edge between {u} and {v} in the graph.")
+        return self.DisjGraph.nodes[v]['p_time']
 
     def get_neighbors(self, node):
         r""" Get candidates neighbors from node,
@@ -414,21 +413,35 @@ class DisjunctiveGraph(object):
         Returns:
             list: list of neighbors of the node
         """
-        return list(self.ConjGraph.neighbors(node))
+        return list(self.DisjGraph.neighbors(node))
 
-    def creates_cycle(self, current, node):
-        r""" Check cycle without adding edge to the graph"""
-        # DEPRECATED
-        # TODO
-        visited = set()
-        queue = [node]
+    # def creates_cycle(self, current, node):
+    #     r""" Check cycle without adding edge to the graph"""
+    #     # DEPRECATED
+    #     # TODO
+    #     visited = set()
+    #     queue = [node]
 
-        while queue:
-            vertex = queue.pop(0)
-            if vertex == current:
-                return True
-            if vertex not in visited:
-                visited.add(vertex)
-                queue.extend(self.ConjGraph[vertex] - visited)
+    #     while queue:
+    #         vertex = queue.pop(0)
+    #         if vertex == current:
+    #             return True
+    #         if vertex not in visited:
+    #             visited.add(vertex)
+    #             queue.extend(self.ConjGraph[vertex] - visited)
 
-        return False
+    #     return False
+
+    def extract_subgraph_with_hop(self, node, hop=2):
+        r"""Extract a subgraph with a given hop distance from a node.
+
+        Args:
+            node (str): The node from which to start.
+            hop_distance (int): The hop distance.
+
+        Returns:
+            nx.DiGraph: The extracted subgraph.
+        """
+        # Use ego_graph to get the subgraph with the specified hop distance
+        subgraph = nx.ego_graph(self.DisjGraph, node, radius=hop, undirected=False)
+        return subgraph
