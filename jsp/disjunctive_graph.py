@@ -311,14 +311,14 @@ class DisjunctiveGraph(object):
 
         # draw disjunctive edges
         if disjunctive:
-            unassigned_disj_edges = [(u, v) for u, v, d in self.DisjGraph.edges(data=True)
-                                     if d['type'] == 'disjunctive' and not d['assigned']]
+            disj_edges = [(u, v) for u, v, d in self.DisjGraph.edges(data=True)
+                                     if d['type'] == 'disjunctive']
             disj_colors = [self._machine_colors[self.DisjGraph.nodes[u]['m_id']]
-                           for u, v in unassigned_disj_edges]
+                           for u, v in disj_edges]
             nx.draw_networkx_edges(
                 self.DisjGraph,
                 pos,
-                edgelist=unassigned_disj_edges,
+                edgelist=disj_edges,
                 # edge_color='r',
                 edge_color=disj_colors,
                 style="dashed",
@@ -405,7 +405,7 @@ class DisjunctiveGraph(object):
 
     def get_neighbors(self, node):
         r""" Get candidates neighbors from node,
-        including the successor in conjunctive nodes and neighbors in disjunctive nodes
+          including the successor in conjunctive nodes and neighbors in disjunctive nodes
 
         Args:
             node (str): node name
@@ -414,23 +414,6 @@ class DisjunctiveGraph(object):
             list: list of neighbors of the node
         """
         return list(self.DisjGraph.neighbors(node))
-
-    # def creates_cycle(self, current, node):
-    #     r""" Check cycle without adding edge to the graph"""
-    #     # DEPRECATED
-    #     # TODO
-    #     visited = set()
-    #     queue = [node]
-
-    #     while queue:
-    #         vertex = queue.pop(0)
-    #         if vertex == current:
-    #             return True
-    #         if vertex not in visited:
-    #             visited.add(vertex)
-    #             queue.extend(self.ConjGraph[vertex] - visited)
-
-    #     return False
 
     def extract_subgraph_with_hop(self, node, hop=2):
         r"""Extract a subgraph with a given hop distance from a node.

@@ -5,7 +5,6 @@ from copy import deepcopy
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
-from torch import R
 
 from .ant import Ant
 from .disjunctive_graph import DisjunctiveGraph
@@ -60,9 +59,9 @@ class ACO(object):
         # retrieve the solution ant
         solution_ant = self._deploy_solution_ant(source, target)
 
-        # dag = self.build_dag()
+        dag = self.build_dag()
 
-        # print(dag)
+        print(dag)
         if not nx.is_directed_acyclic_graph(dag):
             return None, np.inf
 
@@ -85,8 +84,18 @@ class ACO(object):
 
         dag = self.graph.DisjGraph.copy()
         adjList = deepcopy(dag._adj)
-
         edges = deepcopy(dag.edges)
+
+        disj_edges = [edge for edge in edges if dag._adj[edge[0]][edge[1]]['type'] == 'disjunctive']
+        # for m_id, tasks in self.graph.machine_tasks.items():
+        #     for i in range(len(tasks)):
+        #         for j in range(i + 1, len(tasks)):
+        #             u = f"J_{tasks[i][0]}_{tasks[i][1]}"
+        #             v = f"J_{tasks[j][0]}_{tasks[j][1]}"
+        #             if self.graph.DisjGraph[u][v]["pheromones"] >= self.graph.DisjGraph[v][u]["pheromones"]:
+        #                 self.graph.DisjGraph.remove_edge(v, u)
+        #             else:
+        #                 self.graph.DisjGraph.remove_edge(u, v)
 
         # Remove disjunctive edges from the graph
         for idx, _ in enumerate(edges):
@@ -110,17 +119,25 @@ class ACO(object):
                 reverse_edge_pheromone = adjList[task][node]['pheromones']
 
                 if edge_pheromone > reverse_edge_pheromone:
-                    dag.add_edge(node, task)
+                    dag.add_edge(node, task,
+                                 type='disjunctive',
+                                 pheromones=edge_pheromone,
+                                 assigned=True)
+
                     if nx.is_directed_acyclic_graph(dag):
                         continue
                     else:
                         dag.remove_edge(node, task)
                 else:
-                    dag.add_edge(task, node)
+                    dag.add_edge(task, node,
+                                 type='disjunctive',
+                                 pheromones=reverse_edge_pheromone,
+                                 assigned=True)
                     if nx.is_directed_acyclic_graph(dag):
                         continue
                     else:
                         dag.remove_edge(task, node)
+        self.graph.DisjGraph = dag
         return dag
 
     def draw_networks(self, g1, g2=None):
@@ -210,7 +227,11 @@ class ACO(object):
 
     def _deploy_backward_search_ants(self):
         r""" Deploy fit search ants back towards their source node while dropping pheromones on the path
+
+        Notes:
+          - For each ant reaches its destination, drop pheromones on the path.
         """
         for ant in self.search_ants:
-            if ant.is_fit:
-                ant.deposit_pheromones_on_path()
+            # if ant.is_fit:
+            #     ant.deposit_pheromones_on_path()
+            ant.deposit_pheromones_on_path()
