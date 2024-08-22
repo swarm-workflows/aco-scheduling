@@ -60,7 +60,7 @@ class Ant(object):
         r""" Deposit pheromone on the edge (u, v)
 
         .. math::
-            \tau_{u, v}(t+1) = (1-\rho) \tau_{u, v}(t) + \Delta\tau_{u, v}(t)
+            \tau_{u, v}(t+1) = (1-\rho) \tau_{u, v}(t) + \Delta\tau_{u, v}(t)`
 
         Args:
             u (str): source node
@@ -169,7 +169,7 @@ class Ant(object):
 
         else:
             prob = self._calculate_edge_probabilities(unvisited_neighbors)
-            print(self.current_node, prob)
+            # print(self.current_node, prob)
             return random.choices(list(prob.keys()), weights=list(prob.values()), k=1)[0]
             # return self._roulette_wheel_selection(prob)
 

@@ -1,10 +1,12 @@
-
 import random
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from ortools.sat.python import cp_model
+from collections import defaultdict, namedtuple
+
 
 from .ant import Ant
 from .disjunctive_graph import DisjunctiveGraph
@@ -17,9 +19,9 @@ class ACO(object):
                  ant_max_steps=100,
                  num_iterations=100,
                  ant_random_init=True,
-                 evaporation_rate=0.5,
-                 alpha=0.7,
-                 beta=0.3):
+                 evaporation_rate=0.9,
+                 alpha=0.2,
+                 beta=0.8):
 
         self.graph = graph
         self.ant_max_steps = ant_max_steps
@@ -59,12 +61,34 @@ class ACO(object):
         # retrieve the solution ant
         solution_ant = self._deploy_solution_ant(source, target)
 
-        dag = self.build_dag()
+        self.sol_dag = self.build_dag()
 
-        print(dag)
-        if not nx.is_directed_acyclic_graph(dag):
+        # print(self.sol_dag)
+        if not nx.is_directed_acyclic_graph(self.sol_dag):
             return None, np.inf
 
+        # algorithm to calculate makespan with respect to precedence and machine constraints
+        # node_dist = {}
+        # for node in nx.topological_sort(self.sol_dag):
+        #     node_w = self.sol_dag.nodes[node]['p_time']
+        #     dists = [node_dist[n] for n in self.sol_dag.predecessors(node)]
+        #     if len(dists) > 0:
+        #         node_w += max(dists)
+
+        #     node_dist[node] = node_w
+
+        # makespan = max(node_dist.values())
+        makespan = self.calulate_makespan(self.sol_dag)
+
+        return solution_ant.path, makespan
+
+    def calulate_makespan(self, dag):
+        r""" Calculate the makespan of the schedule.
+
+        Args:
+            dag (nx.DiGraph): The directed acyclic graph representing the schedule.
+        """
+        assert nx.is_directed_acyclic_graph(dag)
         # algorithm to calculate makespan with respect to precedence and machine constraints
         node_dist = {}
         for node in nx.topological_sort(dag):
@@ -76,8 +100,7 @@ class ACO(object):
             node_dist[node] = node_w
 
         makespan = max(node_dist.values())
-
-        return solution_ant.path, makespan
+        return makespan
 
     def build_dag(self):
         r""" Create a directed acyclic graph so that makespan of schedule can be calculated. """
@@ -170,7 +193,7 @@ class ACO(object):
         """
         for iter in range(self.num_iterations):
             self.search_ants = []
-            print(f"Iter {iter}:", end=" ")
+            # print(f"Iter {iter}:", end=" ")
 
             for ant_idx in range(num_ants):
                 # deploy ant randomly on disjunctive graph
@@ -219,7 +242,7 @@ class ACO(object):
             for step in range(self.ant_max_steps):
                 if ant.reached_destination():
                     # print(ant.path, ant.visited_nodes)
-                    print(f"Ant {ant_id}", ant.path)
+                    # print(f"Ant {ant_id}", ant.path)
                     ant.is_fit = True
                     break
                 else:
@@ -235,3 +258,225 @@ class ACO(object):
             # if ant.is_fit:
             #     ant.deposit_pheromones_on_path()
             ant.deposit_pheromones_on_path()
+
+
+class ACO_LS(ACO):
+    def __init__(self,
+                 graph=None,
+                 ant_max_steps=100,
+                 num_iterations=100,
+                 ant_random_init=True,
+                 evaporation_rate=0.5,
+                 alpha=0.7,
+                 beta=0.3,
+                 n_subgraphs=10,):
+
+        super().__init__(graph,
+                         ant_max_steps,
+                         num_iterations,
+                         ant_random_init,
+                         evaporation_rate,
+                         alpha,
+                         beta)
+        self.n_subgraphs = n_subgraphs
+
+    def find_minimum_makespan(self, source, target, num_ants, **kwargs):
+        r""" Find the minimum makespan from the source to the target node in the graph
+
+        Args:
+            source (str): The source node in the graph
+            target (str): The target node in the graph
+            num_ants (int): The number of ants to be inited
+
+        Returns:
+            Tuple[List, float]: A tuple containing the path and the cost of the path
+        """
+
+        # get the final solution based on the pheromone greedy approach, ie.e, for
+        # the bi-directional disjunctive edges, assign direction based on the
+        # pheromone level.
+        #
+        # after getting the DAG, calculate the final solution based on
+        #  `s_v + p_v = f_v, s_v = max_{u->v}(f_u)`
+
+        # send out ants to search for the destination node
+        self._deploy_search_ants(source, target, num_ants)
+
+        # retrieve the solution ant
+        solution_ant = self._deploy_solution_ant(source, target)
+
+        self.sol_dag = self.build_dag()
+
+        # print(self.sol_dag)
+        if not nx.is_directed_acyclic_graph(self.sol_dag):
+            return None, np.inf
+
+        makespan = self.calulate_makespan(self.sol_dag)
+
+        # TODO: Local search
+        # 1. random pick a node in graph, and sample an egograph of n_subgraphs
+        # 2. solve the subgraph using OR-Tools
+        # 3. update the direction of disjunctive edges based on the solution
+        # 4. repeat the process until no improvement is made
+        self.local_search()
+        return solution_ant.path, makespan
+
+    def local_search(self, hop=1):
+        # TODO: Local search
+        # 1. random pick a node in graph, and sample an egograph of n_subgraphs
+        # 2. solve the subgraph using OR-Tools
+        # 3. update the direction of disjunctive edges based on the solution
+        # 4. repeat the process until no improvement is made
+
+        node = random.choice(list(self.graph.DisjGraph.nodes))
+        # TODO: the ego graph should be a subgraph of original disjunctive graph
+        subG = nx.ego_graph(self.graph.DisjGraph, node, radius=hop)
+
+        solution = self.solve_subgraph_with_ortools(subG)
+        if solution:
+            # Update the direction of disjunctive edges based on the solution
+            for u, v in subG.edges:
+                if solution[u] < solution[v]:
+                    self.graph.DisjGraph[u][v]['direction'] = 'forward'
+                else:
+                    self.graph.DisjGraph[u][v]['direction'] = 'backward'
+
+            new_makespan = self.calculate_makespan()
+            if new_makespan < current_makespan:
+                current_makespan = new_makespan
+                improvement = True
+            else:
+                improvement = False
+
+    def solve_subgraph_with_ortools(self, subgraph):
+        r""" Solve the subgraph using OR-Tools
+
+        Args:
+            subgraph (nx.Graph): The subgraph to be solved
+
+        Returns:
+            Dict: The solution to the subgraph
+        """
+        # Create the model
+        model = cp_model.CpModel()
+
+        # From subgraph, extract the nodes and prepare data as job_data = [[(machine_id, duration), ...], ...]
+        # TODO: build a job_data array from subgraph, where each element is a list of tuples (machine_id, duration)
+        job_data = defaultdict(list)
+        for node in subgraph.nodes:
+            if node in ['S', 'T']:
+                continue
+            job_data[node.split("_")[1]].append((subgraph.nodes[node]['m_id'], subgraph.nodes[node]['p_time']))
+        job_data_arr = []
+        for k in job_data:
+            job_data_arr.append(job_data[k])
+
+        # NOTE: solve in OR-Tools
+        machines_count = 1 + max(task[0] for job in job_data_arr for task in job)
+    
+        all_machines = range(machines_count)
+        # Computes horizon dynamically as the sum of all durations.
+        horizon = sum(task[1] for job in job_data_arr for task in job)
+
+        # Create the model.
+        model = cp_model.CpModel()
+
+        # Named tuple to store information about created variables.
+        task_type = namedtuple("task_type", "start end interval")
+        # Named tuple to manipulate solution information.
+        assigned_task_type = namedtuple(
+            "assigned_task_type", "start job index duration"
+        )
+
+        # Creates job intervals and add to the corresponding machine lists.
+        all_tasks = {}
+        machine_to_intervals = defaultdict(list)
+
+        for job_id, job in enumerate(job_data_arr):
+            for task_id, task in enumerate(job):
+                machine, duration = task
+                suffix = f"_{job_id}_{task_id}"
+                start_var = model.new_int_var(0, horizon, "start" + suffix)
+                end_var = model.new_int_var(0, horizon, "end" + suffix)
+                interval_var = model.new_interval_var(
+                    start_var, duration, end_var, "interval" + suffix
+                )
+                all_tasks[job_id, task_id] = task_type(
+                    start=start_var, end=end_var, interval=interval_var
+                )
+                machine_to_intervals[machine].append(interval_var)
+
+        # Create and add disjunctive constraints.
+        for machine in all_machines:
+            model.add_no_overlap(machine_to_intervals[machine])
+
+        # Precedences inside a job.
+        for job_id, job in enumerate(job_data_arr):
+            for task_id in range(len(job) - 1):
+                model.add(
+                    all_tasks[job_id, task_id + 1].start >= all_tasks[job_id, task_id].end
+                )
+
+        # Makespan objective.
+        obj_var = model.new_int_var(0, horizon, "makespan")
+        model.add_max_equality(
+            obj_var,
+            [all_tasks[job_id, len(job) - 1].end for job_id, job in enumerate(job_data_arr)],
+        )
+        model.minimize(obj_var)
+
+        # Creates the solver and solve.
+        solver = cp_model.CpSolver()
+        status = solver.solve(model)
+
+        if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
+            print("Solution:")
+            # Create one list of assigned tasks per machine.
+            assigned_jobs = defaultdict(list)
+            for job_id, job in enumerate(job_data_arr):
+                for task_id, task in enumerate(job):
+                    machine = task[0]
+                    assigned_jobs[machine].append(
+                        assigned_task_type(
+                            start=solver.value(all_tasks[job_id, task_id].start),
+                            job=job_id,
+                            index=task_id,
+                            duration=task[1],
+                        )
+                    )
+
+            # Create per machine output lines.
+            output = ""
+            for machine in all_machines:
+                # Sort by starting time.
+                assigned_jobs[machine].sort()
+                sol_line_tasks = "Machine " + str(machine) + ": "
+                sol_line = "           "
+
+                for assigned_task in assigned_jobs[machine]:
+                    name = f"job_{assigned_task.job}_task_{assigned_task.index}"
+                    # add spaces to output to align columns.
+                    sol_line_tasks += f"{name:15}"
+
+                    start = assigned_task.start
+                    duration = assigned_task.duration
+                    sol_tmp = f"[{start},{start + duration}]"
+                    # add spaces to output to align columns.
+                    sol_line += f"{sol_tmp:15}"
+
+                sol_line += "\n"
+                sol_line_tasks += "\n"
+                output += sol_line_tasks
+                output += sol_line
+
+            # Finally print the solution found.
+            print(f"Optimal Schedule Length: {solver.objective_value}")
+            print(output)
+        else:
+            print("No solution found.")
+
+        # Statistics.
+        print("\nStatistics")
+        print(f"  - conflicts: {solver.num_conflicts}")
+        print(f"  - branches : {solver.num_branches}")
+        print(f"  - wall time: {solver.wall_time}s")
