@@ -19,17 +19,22 @@ class ACO(object):
                  ant_max_steps=100,
                  num_iterations=100,
                  ant_random_init=True,
-                 evaporation_rate=0.9,
+                 rho=0.9,
                  alpha=0.2,
-                 beta=0.8):
+                 beta=0.8,
+                 tau_min=0.1,
+                 tau_max=10.0,
+                 ):
 
         self.graph = graph
         self.ant_max_steps = ant_max_steps
         self.num_iterations = num_iterations
         self.ant_random_init = ant_random_init
-        self.evaporation_rate = evaporation_rate
+        self.rho = rho
         self.alpha = alpha
         self.beta = beta
+        self.tau_min = tau_min
+        self.tau_max = tau_max
         self.search_ants = []
 
         # initialize pheromones on the graph, including both conj and disj edges
@@ -55,6 +60,8 @@ class ACO(object):
         # after getting the DAG, calculate the final solution based on
         #  `s_v + p_v = f_v, s_v = max_{u->v}(f_u)`
 
+        # TODO: track unvisited nodes
+        self.unexplored_nodes = set(self.graph.DisjGraph.nodes)
         # send out ants to search for the destination node
         self._deploy_search_ants(source, target, num_ants)
 
@@ -266,7 +273,7 @@ class ACO_LS(ACO):
                  ant_max_steps=100,
                  num_iterations=100,
                  ant_random_init=True,
-                 evaporation_rate=0.5,
+                 rho=0.5,
                  alpha=0.7,
                  beta=0.3,
                  n_subgraphs=10,):
@@ -275,7 +282,7 @@ class ACO_LS(ACO):
                          ant_max_steps,
                          num_iterations,
                          ant_random_init,
-                         evaporation_rate,
+                         rho,
                          alpha,
                          beta)
         self.n_subgraphs = n_subgraphs
@@ -312,44 +319,86 @@ class ACO_LS(ACO):
             return None, np.inf
 
         makespan = self.calulate_makespan(self.sol_dag)
-
-        # TODO: Local search
-        # 1. random pick a node in graph, and sample an egograph of n_subgraphs
-        # 2. solve the subgraph using OR-Tools
-        # 3. update the direction of disjunctive edges based on the solution
-        # 4. repeat the process until no improvement is made
         self.local_search()
         return solution_ant.path, makespan
 
-    def local_search(self, hop=1):
-        # TODO: Local search
-        # 1. random pick a node in graph, and sample an egograph of n_subgraphs
-        # 2. solve the subgraph using OR-Tools
-        # 3. update the direction of disjunctive edges based on the solution
-        # 4. repeat the process until no improvement is made
+    def local_search(self, n_hops=1, n_samples=5):
+        r""" Perform local search on the graph
+        Notes:
+            1. random pick a node in graph, and sample an egograph with n_hops
+            2. solve the subgraph using OR-Tools
+            3. update the direction of disjunctive edges based on the solution
+            4. repeat the process until no improvement is made
 
-        node = random.choice(list(self.graph.DisjGraph.nodes))
-        # TODO: the ego graph should be a subgraph of original disjunctive graph
-        subG = nx.ego_graph(self.graph.DisjGraph, node, radius=hop)
+        Args:
+            hop (int): The radius of the ego graph
+            n_samples (int): The number of subgraphs to be taken
+        """
+        subgraph_solutions = []
+        for _ in range(n_samples):
+            node = random.choice(list(self.graph.DisjGraph.nodes))
+            # TODO: the ego graph should be a subgraph of original disjunctive graph
+            subG = nx.ego_graph(self.graph.DisjGraph, node, radius=n_hops)
 
-        solution = self.solve_subgraph_with_ortools(subG)
-        if solution:
-            # Update the direction of disjunctive edges based on the solution
-            for u, v in subG.edges:
-                if solution[u] < solution[v]:
-                    self.graph.DisjGraph[u][v]['direction'] = 'forward'
+            # TODO: update the direction of disjunctive edges based on the solution
+            solution = self.solve_subgraph_with_ortools(subG)
+            if solution:
+                # Update the direction of disjunctive edges based on the solution
+                for u, v in subG.edges:
+                    if solution[u] < solution[v]:
+                        self.graph.DisjGraph[u][v]['direction'] = 'forward'
+                    else:
+                        self.graph.DisjGraph[u][v]['direction'] = 'backward'
+
+                new_makespan = self.calculate_makespan()
+                if new_makespan < current_makespan:
+                    current_makespan = new_makespan
+                    improvement = True
                 else:
-                    self.graph.DisjGraph[u][v]['direction'] = 'backward'
+                    improvement = False
+                subgraph_solutions.append(solution)
 
-            new_makespan = self.calculate_makespan()
-            if new_makespan < current_makespan:
-                current_makespan = new_makespan
-                improvement = True
-            else:
-                improvement = False
+        self.update_pheromones(subgraph_solutions)
+
+    def update_pheromones(self, subgraph_solutions, gamma):
+        r""" Update pheromones after the results of local search solutions
+
+        .. math::
+            \tau_{ij} = \tau_{ij} + \gamma prob_{ij}, where
+            - \gamma is the factor of contribution from local search
+            - prob_{ij} is the probability of direction from the solution of subgraphs, prob_{ij} + prob_{ji} = 1
+
+        Args:
+            subgraph_solutions (List[Dict]): The solutions of subgraphs
+            gamma (float): The factor of contribution from local search
+        """
+        # Reset pheromones
+        counts = {}
+        for u, v in self.graph.DisjGraph.edges():
+            counts[(u, v)] = 0
+
+        # Count the times of direction from solution of subgraphs
+        for subgraph_index, solutions in enumerate(subgraph_solutions):
+            direction_count = {}
+            total_count = 0
+            for solution in solutions:
+                for u, v in solution:
+                    direction_count[(u, v)] += 1
+                    total_count += 1
+
+            # Normalize the pheromones so that they sum to 1
+            for direction in direction_count:
+                direction_count[direction] /= total_count
+
+            # Update pheromones based on normalized direction count
+            self.graph.DisjGraph.edges[(u, v)] += gamma * direction_count
 
     def solve_subgraph_with_ortools(self, subgraph):
         r""" Solve the subgraph using OR-Tools
+
+        Notes:
+            - OR-Tools is used to solve the subgraph
+            - The input of subgraph is not necessary to be a matrix form, but list of tuples.
 
         Args:
             subgraph (nx.Graph): The subgraph to be solved
@@ -357,6 +406,7 @@ class ACO_LS(ACO):
         Returns:
             Dict: The solution to the subgraph
         """
+        # TODO: revise and reuse the utils function `ortools_api` to solve the subgraph
         # Create the model
         model = cp_model.CpModel()
 
@@ -373,7 +423,7 @@ class ACO_LS(ACO):
 
         # NOTE: solve in OR-Tools
         machines_count = 1 + max(task[0] for job in job_data_arr for task in job)
-    
+
         all_machines = range(machines_count)
         # Computes horizon dynamically as the sum of all durations.
         horizon = sum(task[1] for job in job_data_arr for task in job)

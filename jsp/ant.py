@@ -9,7 +9,9 @@ class Ant(object):
     def __init__(self, graph, source, target,
                  alpha=0.7,
                  beta=0.3,
-                 evaporation_rate=0.1,
+                 rho=0.1,
+                 tau_min=0.1,
+                 tau_max=10.0,
                  visited_nodes=set(),
                  path=[],
                  past_cost=0.0,
@@ -34,7 +36,9 @@ class Ant(object):
         self.target = target
         self.alpha = alpha
         self.beta = beta
-        self.evaporation_rate = evaporation_rate
+        self.rho = rho
+        self.tau_min = tau_min
+        self.tau_max = tau_max
         self.visited_nodes = visited_nodes
         self.path = path
         self.path_cost = past_cost
@@ -70,8 +74,11 @@ class Ant(object):
             NOTE: Soon to be replaced by max_min_update_pheromones
         """
         if self.graph.DisjGraph.has_edge(u, v):
-            self.graph.DisjGraph[u][v]["pheromones"] = (1 - self.evaporation_rate) * \
+            self.graph.DisjGraph[u][v]["pheromones"] = (1 - self.rho) * \
                 self.graph.DisjGraph[u][v]["pheromones"] + pheromone_amount
+            # MAX-MIN Ant System clipping
+            self.graph.DisjGraph[u][v]["pheromones"] = np.clip(
+                self.graph.DisjGraph[u][v]["pheromones"], self.tau_min, self.tau_max)
         else:
             raise ValueError(f"No edge between {u} and {v} in either graph.")
 
