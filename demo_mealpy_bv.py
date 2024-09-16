@@ -89,6 +89,7 @@ class DGProblem(Problem):
 
 
 
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--problem', type=str, default="ft")
@@ -107,6 +108,7 @@ def main():
                                     args.id,
                                     args.format)
     n, m = len(times), len(times[0])
+
 
     # case 1 example:
     # https://developers.google.com/optimization/scheduling/job_shop
@@ -127,6 +129,7 @@ def main():
     g1, g2 = convert_to_nx(times, machines, n, m)
     p = DGProblem(g1, g2, n_ants=args.n_ants)
     model = ACOR.OriginalACOR(epoch=3, pop_size=args.n_ants, )
+
     # model = PSO.OriginalPSO(epoch=100, pop_size=100, seed=10)
     model.solve(p, mode="swarm", n_workers=24)
     # print(model.g_best.solution)
