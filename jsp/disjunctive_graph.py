@@ -282,9 +282,9 @@ class DisjunctiveGraph(object):
         """
 
         # TODO: specify the figsize from arg, if not assigned, use the default value
-        # plt.figure(figsize=(self.max_job_length, self.n_jobs / 4),
-        #            tight_layout=True,
-        #            dpi=300)
+        plt.figure(figsize=(self.max_job_length * 2, self.n_jobs),
+                   tight_layout=True,
+                   dpi=300)
         pos = nx.get_node_attributes(self.DisjGraph, 'pos')
         nx.draw_networkx_nodes(
             self.DisjGraph,

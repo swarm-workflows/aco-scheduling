@@ -1,5 +1,10 @@
 # Jobshop Instances
 
+
+## Description
+
+* __Disjunctive Graph__
+
 This directory contains a collection of jobshop instances. The instances are
 taken from the literature and are used to benchmark algorithms for the jobshop
 scheduling problem [[1](http://jobshop.jjvh.nl/index.php)].

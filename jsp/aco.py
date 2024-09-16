@@ -13,6 +13,7 @@ from .disjunctive_graph import DisjunctiveGraph
 
 
 class ACO(object):
+    r""" Ant colony optimization for job-shop scheduling problem """
 
     def __init__(self,
                  graph=None,
@@ -268,6 +269,8 @@ class ACO(object):
 
 
 class ACO_LS(ACO):
+    r""" Ant colony optimization with local search for job-shop scheduling problem """
+
     def __init__(self,
                  graph=None,
                  ant_max_steps=100,
@@ -322,7 +325,7 @@ class ACO_LS(ACO):
         self.local_search()
         return solution_ant.path, makespan
 
-    def local_search(self, n_hops=1, n_samples=5):
+    def local_search(self, n_hops=2, n_samples=5):
         r""" Perform local search on the graph
         Notes:
             1. random pick a node in graph, and sample an egograph with n_hops
@@ -360,7 +363,7 @@ class ACO_LS(ACO):
 
         self.update_pheromones(subgraph_solutions)
 
-    def update_pheromones(self, subgraph_solutions, gamma):
+    def update_pheromones(self, subgraph_solutions, gamma=1):
         r""" Update pheromones after the results of local search solutions
 
         .. math::
