@@ -1,12 +1,12 @@
 import random
+from collections import defaultdict, namedtuple
 from copy import deepcopy
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
+from joblib import Parallel, delayed
 from ortools.sat.python import cp_model
-from collections import defaultdict, namedtuple
-
 
 from .ant import Ant
 from .disjunctive_graph import DisjunctiveGraph
@@ -25,6 +25,7 @@ class ACO(object):
                  beta=0.8,
                  tau_min=0.1,
                  tau_max=10.0,
+                 **kwargs
                  ):
 
         self.graph = graph
@@ -38,6 +39,7 @@ class ACO(object):
         self.tau_max = tau_max
         self.search_ants = []
 
+        self.verbose = kwargs.get('verbose', False)
         # initialize pheromones on the graph, including both conj and disj edges
         for edge in self.graph.DisjGraph.edges():
             self.graph.set_edge_pheromones(edge[0], edge[1])
@@ -52,21 +54,23 @@ class ACO(object):
 
         Returns:
             Tuple[List, float]: A tuple containing the path and the cost of the path
+
+        Notes:
+            get the final solution based on the pheromone greedy approach, i.e., for
+            the bi-directional disjunctive edges, assign direction based on the
+            pheromone level.
+
+            after getting the DAG, calculate the final solution based on
+            `s_v + p_v = f_v, s_v = max_{u->v}(f_u)`
         """
-
-        # get the final solution based on the pheromone greedy approach, ie.e, for
-        # the bi-directional disjunctive edges, assign direction based on the
-        # pheromone level.
-        #
-        # after getting the DAG, calculate the final solution based on
-        #  `s_v + p_v = f_v, s_v = max_{u->v}(f_u)`
-
-        # TODO: track unvisited nodes
+        # unexplored nodes
         self.unexplored_nodes = set(self.graph.DisjGraph.nodes)
+
         # send out ants to search for the destination node
         self._deploy_search_ants(source, target, num_ants)
 
         # retrieve the solution ant
+        # DEBUG: source of solution ant should be "S", and target should be "T"
         solution_ant = self._deploy_solution_ant(source, target)
 
         self.sol_dag = self.build_dag()
@@ -75,17 +79,6 @@ class ACO(object):
         if not nx.is_directed_acyclic_graph(self.sol_dag):
             return None, np.inf
 
-        # algorithm to calculate makespan with respect to precedence and machine constraints
-        # node_dist = {}
-        # for node in nx.topological_sort(self.sol_dag):
-        #     node_w = self.sol_dag.nodes[node]['p_time']
-        #     dists = [node_dist[n] for n in self.sol_dag.predecessors(node)]
-        #     if len(dists) > 0:
-        #         node_w += max(dists)
-
-        #     node_dist[node] = node_w
-
-        # makespan = max(node_dist.values())
         makespan = self.calulate_makespan(self.sol_dag)
 
         return solution_ant.path, makespan
@@ -97,14 +90,13 @@ class ACO(object):
             dag (nx.DiGraph): The directed acyclic graph representing the schedule.
         """
         assert nx.is_directed_acyclic_graph(dag)
-        # algorithm to calculate makespan with respect to precedence and machine constraints
+        # algorithm to calculate makespan w.r.t. precedence and machine constraints
         node_dist = {}
         for node in nx.topological_sort(dag):
             node_w = dag.nodes[node]['p_time']
             dists = [node_dist[n] for n in dag.predecessors(node)]
             if len(dists) > 0:
                 node_w += max(dists)
-
             node_dist[node] = node_w
 
         makespan = max(node_dist.values())
@@ -118,15 +110,6 @@ class ACO(object):
         edges = deepcopy(dag.edges)
 
         disj_edges = [edge for edge in edges if dag._adj[edge[0]][edge[1]]['type'] == 'disjunctive']
-        # for m_id, tasks in self.graph.machine_tasks.items():
-        #     for i in range(len(tasks)):
-        #         for j in range(i + 1, len(tasks)):
-        #             u = f"J_{tasks[i][0]}_{tasks[i][1]}"
-        #             v = f"J_{tasks[j][0]}_{tasks[j][1]}"
-        #             if self.graph.DisjGraph[u][v]["pheromones"] >= self.graph.DisjGraph[v][u]["pheromones"]:
-        #                 self.graph.DisjGraph.remove_edge(v, u)
-        #             else:
-        #                 self.graph.DisjGraph.remove_edge(u, v)
 
         # Remove disjunctive edges from the graph
         for idx, _ in enumerate(edges):
@@ -172,7 +155,7 @@ class ACO(object):
         return dag
 
     def draw_networks(self, g1, g2=None):
-        r""" Draw the networkx graph
+        r""" Draw the disjunctive graph via networkx API.
 
         Args:
             g1 (nx.Graph): The networkx graph to be drawn
@@ -199,6 +182,7 @@ class ACO(object):
             destination(str): The destination node in the graph
             num_ants(int): The number of ants to be inited
         """
+        # TODO: parallelize the search process
         for iter in range(self.num_iterations):
             self.search_ants = []
             # print(f"Iter {iter}:", end=" ")
@@ -321,11 +305,11 @@ class ACO_LS(ACO):
         if not nx.is_directed_acyclic_graph(self.sol_dag):
             return None, np.inf
 
-        makespan = self.calulate_makespan(self.sol_dag)
+        self.makespan = self.calulate_makespan(self.sol_dag)
         self.local_search()
-        return solution_ant.path, makespan
+        return solution_ant.path, self.makespan
 
-    def local_search(self, n_hops=2, n_samples=5):
+    def local_search(self, n_hops=2, n_samples=5, current_makespan=np.inf):
         r""" Perform local search on the graph
         Notes:
             1. random pick a node in graph, and sample an egograph with n_hops
@@ -338,28 +322,53 @@ class ACO_LS(ACO):
             n_samples (int): The number of subgraphs to be taken
         """
         subgraph_solutions = []
-        for _ in range(n_samples):
-            node = random.choice(list(self.graph.DisjGraph.nodes))
-            # TODO: the ego graph should be a subgraph of original disjunctive graph
-            subG = nx.ego_graph(self.graph.DisjGraph, node, radius=n_hops)
+        # TODO: parallel the process of local search
+        # for _ in range(n_samples):
+        #     node = random.choice(list(self.graph.DisjGraph.nodes))
+        #     # TODO: the ego graph should be a subgraph of original disjunctive graph
+        #     subG = nx.ego_graph(self.graph.DisjGraph, node, radius=n_hops)
 
-            # TODO: update the direction of disjunctive edges based on the solution
+        #     # TODO: update the direction of disjunctive edges based on the solution
+        #     solution = self.solve_subgraph_with_ortools(subG)
+        #     if solution:
+        #         # Update the direction of disjunctive edges based on the solution
+        #         for u, v in subG.edges:
+        #             if solution[u] < solution[v]:
+        #                 self.graph.DisjGraph[u][v]['direction'] = 'forward'
+        #             else:
+        #                 self.graph.DisjGraph[u][v]['direction'] = 'backward'
+
+        #         new_makespan = self.calculate_makespan()
+        #         if new_makespan < current_makespan:
+        #             current_makespan = new_makespan
+        #             improvement = True
+        #         else:
+        #             improvement = False
+        #         subgraph_solutions.append(solution)
+
+        def process_sample(graph, n_hops, current_makespan):
+            node = random.choice(list(graph.DisjGraph.nodes))
+            subG = nx.ego_graph(graph.DisjGraph, node, radius=n_hops)
             solution = self.solve_subgraph_with_ortools(subG)
             if solution:
-                # Update the direction of disjunctive edges based on the solution
                 for u, v in subG.edges:
                     if solution[u] < solution[v]:
-                        self.graph.DisjGraph[u][v]['direction'] = 'forward'
+                        graph.DisjGraph[u][v]['direction'] = 'forward'
                     else:
-                        self.graph.DisjGraph[u][v]['direction'] = 'backward'
+                        graph.DisjGraph[u][v]['direction'] = 'backward'
+                new_makespan = graph.calculate_makespan()
+                improvement = new_makespan < current_makespan
+                return solution, new_makespan, improvement
+            return None, current_makespan, False
 
-                new_makespan = self.calculate_makespan()
-                if new_makespan < current_makespan:
-                    current_makespan = new_makespan
-                    improvement = True
-                else:
-                    improvement = False
+        results = Parallel(n_jobs=-1)(delayed(process_sample)(self.graph, n_hops, current_makespan)
+                                      for _ in range(n_samples))
+
+        for solution, new_makespan, improvement in results:
+            if solution:
                 subgraph_solutions.append(solution)
+                if improvement:
+                    current_makespan = new_makespan
 
         self.update_pheromones(subgraph_solutions)
 
@@ -437,9 +446,7 @@ class ACO_LS(ACO):
         # Named tuple to store information about created variables.
         task_type = namedtuple("task_type", "start end interval")
         # Named tuple to manipulate solution information.
-        assigned_task_type = namedtuple(
-            "assigned_task_type", "start job index duration"
-        )
+        assigned_task_type = namedtuple("assigned_task_type", "start job index duration")
 
         # Creates job intervals and add to the corresponding machine lists.
         all_tasks = {}
@@ -483,7 +490,7 @@ class ACO_LS(ACO):
         status = solver.solve(model)
 
         if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-            print("Solution:")
+
             # Create one list of assigned tasks per machine.
             assigned_jobs = defaultdict(list)
             for job_id, job in enumerate(job_data_arr):
@@ -523,13 +530,17 @@ class ACO_LS(ACO):
                 output += sol_line
 
             # Finally print the solution found.
-            print(f"Optimal Schedule Length: {solver.objective_value}")
-            print(output)
+            if self.verbose:
+                print("Solution:")
+                print(f"Optimal Schedule Length: {solver.objective_value}")
+                print(output)
         else:
-            print("No solution found.")
+            if self.verbose:
+                print("No solution found.")
 
         # Statistics.
-        print("\nStatistics")
-        print(f"  - conflicts: {solver.num_conflicts}")
-        print(f"  - branches : {solver.num_branches}")
-        print(f"  - wall time: {solver.wall_time}s")
+        if self.verbose:
+            print("\nStatistics")
+            print(f"  - conflicts: {solver.num_conflicts}")
+            print(f"  - branches : {solver.num_branches}")
+            print(f"  - wall time: {solver.wall_time}s")
