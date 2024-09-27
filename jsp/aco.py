@@ -14,7 +14,7 @@ class ACO(object):
     def __init__(self,
                  graph=None,
                  ant_max_steps=100,
-                 num_iterations=100,
+                 num_iterations=50,
                  ant_random_init=False,
                  evaporation_rate=0.5,
                  alpha=0.7,
