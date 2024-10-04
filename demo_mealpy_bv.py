@@ -88,8 +88,6 @@ class DGProblem(Problem):
         return max(node_dist.values())
 
 
-
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--problem', type=str, default="ft")
@@ -108,7 +106,6 @@ def main():
                                     args.id,
                                     args.format)
     n, m = len(times), len(times[0])
-
 
     # case 1 example:
     # https://developers.google.com/optimization/scheduling/job_shop

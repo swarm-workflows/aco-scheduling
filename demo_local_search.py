@@ -16,12 +16,13 @@ class ACORLocalSearch(ACOR.OriginalACOR):
         super().__init__(*args, **kwargs)
         self.negate_var = negate_var
         self.counter = 0
+
     def evolve(self, epoch):
         super().evolve(epoch)
 
         pop_new = []
         route_to_improve = []
-        #self.pop.sort(key=lambda agent: self.problem.obj_func(agent.solution))
+        # self.pop.sort(key=lambda agent: self.problem.obj_func(agent.solution))
         route_to_improve.append(self.pop[0])
         """
         for i in range(len(self.pop)):
@@ -30,7 +31,7 @@ class ACORLocalSearch(ACOR.OriginalACOR):
         for i in range(len(pop_to_improve)):
             print(f'pop_to_improve[{i}] makespan: {self.problem.obj_func(pop_to_improve[i].solution)}')
         """
-        #if self.counter % 5 == 0:
+        # if self.counter % 5 == 0:
         for i in range(len(route_to_improve)):
             pop_new.append(self.improve(route_to_improve[i]))
 
@@ -64,7 +65,7 @@ class ACORLocalSearch(ACOR.OriginalACOR):
             return self.generate_empty_agent(best)
 
         return agent
-        
+
 
 def run_models(g1, g2, times, machines):
     p = DGProblem(g1, g2)
@@ -141,8 +142,6 @@ def main():
         print(f'duration type: {type(durations)}, duration matrix: {durations}')
         print(f'machine type: {type(machines)}, machine matrix: {machines}')
 
-
-
         n_jobs = len(durations)
         n_machines = len(durations[0])
         (g1, g2) = convert_to_nx(durations, machines, n_jobs, n_machines)
@@ -151,7 +150,7 @@ def main():
         run_models(g1, g2, durations, machines)
         toc = time()
         print(f"Time: {toc - tic:.2f}")
-    
+
 
 if __name__ == '__main__':
     main()
