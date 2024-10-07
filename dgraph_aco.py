@@ -1,15 +1,21 @@
 #!/usr/bin/env python
 import argparse
+
 import networkx as nx
 import numpy as np
-import itertools
-import matplotlib.pyplot as plt
-from mealpy import PermutationVar, ACOR, PSO, Problem
+from mealpy import ACOR, PSO, PermutationVar, Problem
+
+from ortools_api import ortools_api
+from utils import convert_to_nx, draw_networks, generate_random_machines
+
 
 class DGProblem(Problem):
     def __init__(self, C: nx.DiGraph, D: nx.Graph):
+        # conjunctive graph
         self.C = C
+        # disjunctive graph
         self.D = D
+
         for node in D.nodes:
             assert C.has_node(node)
         self.enumerated_nodes = list(D.nodes)
@@ -23,19 +29,52 @@ class DGProblem(Problem):
         return self.compute_makespan(x)
 
     def build_dag(self, x):
+        r""" build dag from permutation.
+
+        Args:
+            x (list): permutation
+
+        Returns:
+            dag (nx.DiGraph): directed acyclic graph
+        """
         dag = self.C.copy()
         assert isinstance(dag, nx.DiGraph)
+        # enumerate nodes in conjunctive graph based on x,
+        # if edge exist in DisjGraph, add edge to dag
         for i in range(len(x)):
             start = self.enumerated_nodes[x[i]]
-            for j in range(i+1, len(x)):
+            for j in range(i + 1, len(x)):
                 end = self.enumerated_nodes[x[j]]
+                # DEBUG: dag could be (start -> end) or (end -> start)
                 if self.D.has_edge(start, end):
                     dag.add_edge(start, end)
 
+                for u, v in [(start, end), (end, start)]:
+                    dag.add_edge(u, v)
+                    if nx.is_directed_acyclic_graph(dag):
+                        break
+                    else:
+                        dag.remove_edge(u, v)
+                        dag.add_edge(v, u)
+                        if nx.is_directed_acyclic_graph(dag):
+                            break
+                        else:
+                            dag.remove_edge(v, u)
+
+                # if self.D.has_edge(start, end):
+                #     for edge in [(start, end), (end, start)]:
+                #         dag.add_edge(*edge)
+                #         if nx.is_directed_acyclic_graph(dag):
+                #             break
+                #         dag.remove_edge(*edge)
+                #     raise Exception("Invalid DAG")
         return dag
 
     def compute_makespan(self, x):
+        r""" Compute the makespan of the given permutation.
+        """
         dag = self.build_dag(x)
+        # DEBUG: large graphs end with `inf` makespan
         if not nx.is_directed_acyclic_graph(dag):
             return np.inf
 
@@ -49,67 +88,41 @@ class DGProblem(Problem):
             node_dist[node] = node_w
         return max(node_dist.values())
 
-def convert_to_nx(times, machines, n_jobs, n_machines):
-    print(f'jobs={n_jobs}, machines={n_machines}')
-    dep_graph = nx.DiGraph()
-    dep_graph.add_node('s', duration=0)
-    dep_graph.add_node('t', duration=0)
-    for job, step in itertools.product(range(n_jobs), range(n_machines)):
-        machine = machines[job][step] - 1
-        prev_machine = machines[job][step - 1] - 1 if step > 0 else None
-        duration = times[job][step]
-        dep_graph.add_node((job, machine), duration=duration)
-        if prev_machine is not None:
-            dep_graph.add_edge((job, prev_machine), (job, machine))
-        else:
-            dep_graph.add_edge('s', (job, machine))
-        if step == n_machines - 1:
-            dep_graph.add_edge((job, machine), 't')
-
-    res_graph = nx.Graph()
-    for job, machine in itertools.product(range(n_jobs), range(n_machines)):
-        res_graph.add_node((job, machine))
-    for job1, job2, machine in itertools.product(range(n_jobs), range(n_jobs), range(n_machines)):
-        if job1 < job2:
-            res_graph.add_edge((job1, machine), (job2, machine))
-
-    return dep_graph, res_graph
-
-def load_network_fn(fn: str, sid: int):
-    data = np.load(fn)
-    print(data.shape)
-    times, machines = data[sid]
-    print(times.shape)
-    n_jobs, n_machines = data.shape[2:]
-    return convert_to_nx(times, machines, n_jobs, n_machines)
-
-def draw_networks(g1, g2=None):
-    with plt.style.context('ggplot'):
-        pos = nx.spring_layout(g1, seed=7)
-        nx.draw_networkx_nodes(g1, pos, node_size=7)
-        nx.draw_networkx_labels(g1, pos)
-        nx.draw_networkx_edges(g1, pos, arrows=True)
-        if g2:
-            nx.draw_networkx_edges(g2, pos, edge_color='r')
-        plt.draw()
-        plt.show()
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--data', required=True)
-    parser.add_argument('--pos', type=int, default=0)
-    args = parser.parse_args()
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument('--data', required=True)
+    # parser.add_argument('--pos', type=int, default=0)
+    # args = parser.parse_args()
 
-    g1, g2 = load_network_fn(args.data, args.pos)
-#    draw_networks(g1, g2)
+    # g1, g2 = load_network_fn(args.data, args.pos)
+
+    # case 1 example:
+    # https://developers.google.com/optimization/scheduling/job_shop
+    # n, m = 3, 3
+    # times = np.array([[3, 2, 2], [2, 1, 4], [4, 3, 0]])
+    # machines = np.array([[1, 2, 3], [1, 3, 2], [2, 3, 1]])
+
+    # case2: random jobs
+    n = 10
+    m = 8
+    times = np.random.randint(1, 10, (n, m))
+    machines = generate_random_machines(n, m)
+
+    g1, g2 = convert_to_nx(times, machines, n, m)
     p = DGProblem(g1, g2)
     model = ACOR.OriginalACOR(epoch=100, pop_size=100, seed=10)
+    # model = PSO.OriginalPSO(epoch=100, pop_size=100, seed=10)
     model.solve(p)
     print(model.g_best.solution)
 
     res_dag = p.build_dag([int(x) for x in model.g_best.solution])
-    draw_networks(res_dag)
+    draw_networks(res_dag, fn="dgraph_aco")
+
+    # solve the problem in ortools
+    ortools_api(times, machines - 1)
+
 
 if __name__ == '__main__':
+    np.random.seed(42)
     main()
-
