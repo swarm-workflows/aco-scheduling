@@ -11,16 +11,19 @@ jobs. This is called the makespan.
 
 import argparse
 import collections
+import os
 from glob import glob
 from time import time
+from typing import Tuple
 
 from ortools.sat.colab import visualization
 from ortools.sat.python import cp_model
 
 from .utils import read_file
+from utils import store
 
 
-def jobshop_problem(durations, machines) -> None:
+def jobshop_problem(durations, machines) -> Tuple[bool, float]:
     """Solves the jobshop from benchmark."""
     # Creates the solver.
     model = cp_model.CpModel()
@@ -88,9 +91,11 @@ def jobshop_problem(durations, machines) -> None:
             visualization.DisplayJobshop(starts, durations, machines, "FT06")
         else:
             print("Optimal makespan: %i" % solver.objective_value)
+        return True, solver.objective_value
     else:
         # If not optimal, print the best solution found.
         print("Time limit, best known makespan: %i" % solver.ObjectiveValue())
+        return False, solver.ObjectiveValue()
 
 
 if __name__ == "__main__":
@@ -99,13 +104,15 @@ if __name__ == "__main__":
     args.add_argument("--id", type=str, default="5")
     args.add_argument("--format", type=str, default="standard", choices=["standard", "taillard"])
     args.add_argument("--all", action="store_true")
+    args.add_argument("--store", type=str)
     args = args.parse_args()
+    base_dir = os.path.dirname(__file__)
 
     if args.all:
         if args.format == "taillard":
-            files = glob("*/Taillard_specification/*.txt")
+            files = glob(f"{base_dir}/*/Taillard_specification/*.txt")
         else:
-            files = glob("*/*.txt")
+            files = glob(f"{base_dir}/*/*.txt")
 
         for fn in sorted(files[:]):
             durations, machines = read_file(fn, problem=args.problem, id=args.id, format=args.format)
@@ -113,19 +120,41 @@ if __name__ == "__main__":
             n_machines = len(durations[0])
             print(f"Solving {fn.split('/')[-1].split('.')[0]} {n_jobs} {n_machines}", end="\t")
             tic = time()
-            jobshop_problem(durations, machines)
+            optimal, solution = jobshop_problem(durations, machines)
             toc = time()
             print(f"Time: {toc - tic:.2f}")
+            if args.store:
+                store(
+                    os.path.join(args.store, f'ortools_benchmark_{args.problem}_{args.id}_{args.format}.json'),
+                    {
+                        'solver': 'ortools_benchmark',
+                        'solution': solution,
+                        'optimal': optimal,
+                        'time': (toc - tic),
+                        'problem': f'{args.format}_{args.problem}_{args.id}',
+                        'times': n_jobs,
+                        'machines': n_machines,
+                    })
     else:
         if args.format == "standard":
-            fn = f"./{args.problem}/{args.problem}{args.id}.txt"
+            fn = f"{base_dir}/{args.problem}/{args.problem}{args.id}.txt"
         else:
-            fn = f"./{args.problem}/Taillard_specification/{args.problem}{args.id}.txt"
+            fn = f"{base_dir}/{args.problem}/Taillard_specification/{args.problem}{args.id}.txt"
         durations, machines = read_file(fn)
         n_jobs = len(durations)
         n_machines = len(durations[0])
         print(f"Solving {fn.split('/')[-1].split('.')[0]} {n_jobs} {n_machines}", end="\t")
         tic = time()
-        jobshop_problem(durations, machines)
+        optimal, solution = jobshop_problem(durations, machines)
         toc = time()
         print(f"Time: {toc - tic:.2f}")
+        if args.store:
+            store(args.store, {
+                'solver': 'ortools_benchmark',
+                'solution': solution,
+                'optimal': optimal,
+                'time': (toc - tic),
+                'problem': f'{args.format}_{args.problem}_{args.id}',
+                'times': n_jobs,
+                'machines': n_machines,
+                })
