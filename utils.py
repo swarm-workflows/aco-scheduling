@@ -1,4 +1,5 @@
 import itertools
+import json
 
 import networkx as nx
 import numpy as np
@@ -131,3 +132,7 @@ def plot_aco_vs_ortools(aco_best, ortools_best, fn=None):
         axs.legend()
         plt.savefig(f"{fn}.png")
         # plt.show()
+
+def store(path, obj):
+    with open(path, 'w') as f:
+        json.dump(obj, f)

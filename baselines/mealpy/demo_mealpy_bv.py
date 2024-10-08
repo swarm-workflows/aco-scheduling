@@ -17,8 +17,8 @@ from mealpy import ACOR, BinaryVar, Problem
 
 from benchmark.utils import read_file
 from ortools_api import ortools_api
-from utils import convert_to_nx, draw_networks, plot_aco_vs_ortools
-
+from utils import convert_to_nx, draw_networks, plot_aco_vs_ortools, store
+from time import time
 
 class DGProblem(Problem):
     def __init__(self, C: nx.DiGraph, D: nx.Graph, **kwargs):
@@ -94,6 +94,7 @@ def main():
     parser.add_argument('--id', type=str, default="06")
     parser.add_argument('--format', type=str, default="taillard", choices=["standard", "taillard"])
     parser.add_argument('--n_ants', type=int, default=10)
+    parser.add_argument('--store', type=str)
     args = parser.parse_args()
     if args.format == "taillard":
         times, machines = read_file(f"benchmark/{args.problem}/Taillard_specification/{args.problem}{args.id}.txt",
@@ -128,7 +129,9 @@ def main():
     model = ACOR.OriginalACOR(epoch=3, pop_size=args.n_ants, )
 
     # model = PSO.OriginalPSO(epoch=100, pop_size=100, seed=10)
+    tic = time()
     model.solve(p, mode="swarm", n_workers=24)
+    toc = time()
     # print(model.g_best.solution)
     print("ACO - best solution", model.g_best.target.fitness)
 
@@ -152,6 +155,17 @@ def main():
 
     # plot_aco_vs_ortools(aco_best, ortools_best, fn=f"ACO_vs_ORTools_{args.problem}_{args.id}")
 
+    if args.store:
+        store(args.store, {
+            'solver': 'demo_mealpy_bv',
+            'solution': model.g_best.target.fitness,
+            'time': (toc - tic),
+            'problem': f'{args.format}_{args.problem}_{args.id}',
+            'times': n,
+            'machines': m,
+            'ortools_best': ortools_best,
+            'epoch': aco_best,
+        })
 
 if __name__ == '__main__':
     np.random.seed(42)
