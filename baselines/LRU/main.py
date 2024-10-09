@@ -8,6 +8,8 @@ import numpy as np
 from dataclasses import dataclass
 from typing import Tuple
 from benchmark.utils import read_file
+from utils import store
+from time import time
 
 @dataclass(frozen=True)
 class Task:
@@ -83,6 +85,7 @@ def solve(times, machines, queue_cls):
                 print(f'Task {m.current_task} start, release {m.release_time}')
 
     print(f'All tasks completed at {t}')
+    return t
 
 
 
@@ -92,6 +95,7 @@ def main():
     parser.add_argument('--id', type=str, default="06")
     parser.add_argument('--format', type=str, default="taillard", choices=["standard", "taillard"])
     parser.add_argument('--variant', choices=['fifo', 'lru'], default='fifo')
+    parser.add_argument('--store', type=str)
     args = parser.parse_args()
     if args.format == "taillard":
         times, machines = read_file(f"benchmark/{args.problem}/Taillard_specification/{args.problem}{args.id}.txt",
@@ -106,9 +110,19 @@ def main():
 
 
     queue_cls = Queue if args.variant == 'fifo' else LRUQueue
-    solve(times, machines, queue_cls)
-
-
+    tic = time()
+    makespan = solve(times, machines, queue_cls)
+    toc = time()
+    print(f"Time: {toc - tic:.2f}")
+    if args.store:
+        store(args.store, {
+            'solver': f'list_{args.variant}',
+            'solution': makespan,
+            'time': (toc - tic),
+            'problem': f'{args.format}_{args.problem}_{args.id}',
+            'times': len(times),
+            'machines': len(times[0]),
+        })
 
 if __name__ == '__main__':
         main()
