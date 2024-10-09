@@ -30,7 +30,8 @@ from mealpy import ACOR, PermutationVar, Problem
 
 from benchmark.utils import read_file
 from ortools_api import ortools_api
-from utils import convert_to_nx
+from utils import convert_to_nx, store
+from time import time
 
 
 class DGProblem(Problem):
@@ -358,6 +359,7 @@ def main():
     parser.add_argument('--sample_count', type=int, default=25, help="Number of newly generated samples")
     parser.add_argument('--intent_factor', type=float, default=0.5, help="Intensification factor (selection pressure)")
     parser.add_argument('--zeta', type=float, default=1.0, help="Deivation-distance ratio")
+    parser.add_argument('--store', type=str)
 
     args = parser.parse_args()
     if args.format == "taillard":
@@ -389,29 +391,47 @@ def main():
     # case3: load from benchmark
     g1, g2 = convert_to_nx(times, machines, n, m)
     p = DGProblem(g1, g2, n, m, log_to=args.log_to)
-    model = ACOR.OriginalACOR(epoch=args.epoch, pop_size=args.pop_size)
-    model.solve(p, mode="swarm", n_workers=48)
-    print("ACO - best solution", model.g_best.target.fitness)
+    # model = ACOR.OriginalACOR(epoch=args.epoch, pop_size=args.pop_size)
+    # model.solve(p, mode="swarm", n_workers=48)
+    # print("ACO - best solution", model.g_best.target.fitness)
 
     model_ls = ACORLocalSearch(epoch=args.epoch, pop_size=args.pop_size)
+    tic = time()
     model_ls.solve(p, mode="swarm", n_workers=48)
+    toc = time()
     print("ACO + LS - best solution", model_ls.g_best.target.fitness)
+
+    aco_best = []
+    for i in range(len(model_ls.history.list_global_best)):
+        aco_best.append(model_ls.history.list_global_best[i].target.fitness)
+
+
     # res_dag = p.build_dag([int(x) for x in model.g_best.solution])
     # draw_networks(res_dag)
 
     # solve the problem in ortools
-    if isinstance(times, list):
-        times = np.array(times)
-    if isinstance(machines, list):
-        machines = np.array(machines)
-    solver = ortools_api(times, machines)
+    # if isinstance(times, list):
+    #    times = np.array(times)
+    # if isinstance(machines, list):
+    #    machines = np.array(machines)
+    # solver = ortools_api(times, machines)
 
     # aco_best = []
     # for i in range(len(model.history.list_global_best)):
     #     aco_best.append(model.history.list_global_best[i].target.fitness)
 
-    ortools_best = solver.objective_value
-    print(ortools_best)
+    # ortools_best = solver.objective_value
+    # print(ortools_best)
+    if args.store:
+        store(args.store, {
+            'solver': 'demo_mealpy_mpv',
+            'solution': model_ls.g_best.target.fitness,
+            'time': (toc - tic),
+            'problem': f'{args.format}_{args.problem}_{args.id}',
+            'times': n,
+            'machines': m,
+            'epoch': aco_best,
+        })
 
 
 if __name__ == '__main__':
