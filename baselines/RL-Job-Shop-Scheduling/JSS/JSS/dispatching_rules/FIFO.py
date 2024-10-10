@@ -3,8 +3,9 @@ import numpy as np
 import wandb
 import gym
 
-from JSS.default_config import default_config
-
+from JSS.default_config import parse_config
+from time import time
+from JSS.utils import store
 
 def FIFO_worker(default_config):
     wandb.init(config=default_config)
@@ -15,6 +16,7 @@ def FIFO_worker(default_config):
     np.random.seed(config['seed'])
     done = False
     state = env.reset()
+    tic = time()
     while not done:
         real_state = np.copy(state['real_obs'])
         legal_actions = state['action_mask'][:-1]
@@ -27,9 +29,19 @@ def FIFO_worker(default_config):
         assert legal_actions[FIFO_action]
         state, reward, done, _ = env.step(FIFO_action)
     env.reset()
+    toc = time()
     make_span = env.last_time_step
     wandb.log({"nb_episodes": 1, "make_span": make_span})
+    if 'store' in config:
+        store(config['store'], {
+            "solver": 'jss_fifo',
+            "problem": config['instance_path'],
+            "solution": int(make_span),
+            'time': toc - tic,
+        })
+
 
 
 if __name__ == "__main__":
-    FIFO_worker(default_config)
+    config = parse_config()
+    FIFO_worker(config)

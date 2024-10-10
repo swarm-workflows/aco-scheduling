@@ -3,7 +3,9 @@ import wandb
 import gym
 import numpy as np
 
-from JSS.default_config import default_config
+from JSS.default_config import parse_config
+from time import time
+from JSS.utils import store
 
 
 def MTWR_worker(default_config):
@@ -15,6 +17,7 @@ def MTWR_worker(default_config):
     np.random.seed(config['seed'])
     done = False
     state = env.reset()
+    tic = time()
     while not done:
         real_state = np.copy(state['real_obs'])
         legal_actions = state['action_mask'][:-1]
@@ -27,9 +30,20 @@ def MTWR_worker(default_config):
         assert legal_actions[MTWR_action]
         state, reward, done, _ = env.step(MTWR_action)
     env.reset()
+    toc = time()
     make_span = env.last_time_step
     wandb.log({"nb_episodes": 1, "make_span": make_span})
+    if 'store' in config:
+        store(config['store'], {
+            "solver": 'jss_mtwr',
+            "problem": config['instance_path'],
+            "solution": int(make_span),
+            'time': toc - tic,
+        })
+
+
 
 
 if __name__ == "__main__":
-    MTWR_worker(default_config)
+    config = parse_config()
+    MTWR_worker(config)
