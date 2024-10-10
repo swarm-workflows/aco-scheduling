@@ -1,3 +1,4 @@
+import argparse
 import multiprocessing as mp
 
 from ray.rllib.agents.ppo import ppo
@@ -39,3 +40,17 @@ default_config = {
     "simple_optimizer": False,
     "_fake_gpus": False,
 }
+
+def parse_config():
+    config = default_config.copy()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--instance-path')
+    parser.add_argument('--store')
+    args = parser.parse_args()
+
+    if args.instance_path:
+        config['instance_path'] = args.instance_path
+
+    if args.store:
+        config['store'] = args.store
+    return config

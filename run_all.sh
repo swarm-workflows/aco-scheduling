@@ -24,7 +24,19 @@ run_for_problem() {
 	if ! [ -f $OUTPUT ]; then
 		python -m run_jsp --enable-ls $ARGS --store $OUTPUT
 	fi
+}
 
+# Usage:
+# run_jss_for_problem "ft06"
+run_jss_for_problem() {
+	for module in FIFO MTWR; do
+		OUTPUT="$PWD/results/jss_${module}_$1.json"
+		if ! [ -f "$OUTPUT" ]; then
+			pushd baselines/RL-Job-Shop-Scheduling/JSS
+			WANDB_MODE=offline python -m JSS.dispatching_rules.$module --store $OUTPUT --instance-path JSS/instances/$1
+			popd
+		fi
+	done
 }
 
 mkdir -p results
@@ -36,3 +48,4 @@ run_for_problem "abz" "5" "taillard"
 
 run_for_problem "ft" "10" "taillard"
 
+run_jss_for_problem "ta01"
