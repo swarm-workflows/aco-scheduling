@@ -23,6 +23,10 @@ from ray.rllib.models import ModelCatalog
 from ray.tune.utils import flatten_dict
 from ray.rllib.utils.framework import try_import_tf
 
+import argparse
+from utils import store
+
+
 tf1, tf, tfv = try_import_tf()
 
 
@@ -41,6 +45,8 @@ def _handle_result(result: Dict) -> Tuple[Dict, Dict]:
     flat_result = flatten_dict(result, delimiter="/")
 
     for k, v in flat_result.items():
+        if k == 'store':
+            continue
         if any(
                 k.startswith(item + "/") or k == item
                 for item in _config_results):
@@ -65,7 +71,7 @@ def train_func():
         'framework': 'tf',
         'log_level': 'WARN',
         'num_gpus': 1,
-        'instance_path': 'instances/ta41',
+        'instance_path': '',
         'evaluation_interval': None,
         'metrics_smoothing_episodes': 2000,
         'gamma': 1.0,
@@ -100,6 +106,8 @@ def train_func():
         "simple_optimizer": False,
         "_fake_gpus": False,
     }
+
+    default_config, output = parse_config(default_config) 
 
     wandb.init(config=default_config)
     ray.init()
@@ -153,9 +161,29 @@ def train_func():
         wandb.log(log)
         # wandb.config.update(config_update, allow_val_change=True)
     # trainer.export_policy_model("/home/jupyter/JSS/JSS/models/")
-
+    end_time = time.time()
+    
+    store(output, {
+        "solver": 'jss_RL',
+        "problem": config['instance_path'],
+        "solution": result,
+        'time': end_time - start_time,
+    })
+    
     ray.shutdown()
+#custom_metrics/make_span_min 980
 
+def parse_config(default_config):
+    config = default_config.copy()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--instance-path')
+    parser.add_argument('--store')
+    args = parser.parse_args()
+
+    if args.instance_path:
+        config['instance_path'] = args.instance_path
+
+    return config, args.store
 
 if __name__ == "__main__":
     train_func()

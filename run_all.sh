@@ -29,14 +29,12 @@ run_for_problem() {
 # Usage:
 # run_jss_for_problem "ft06"
 run_jss_for_problem() {
-	for module in FIFO MTWR; do
-		OUTPUT="$PWD/results/jss_${module}_$1.json"
-		if ! [ -f "$OUTPUT" ]; then
-			pushd baselines/RL-Job-Shop-Scheduling/JSS
-			WANDB_MODE=offline python -m JSS.dispatching_rules.$module --store $OUTPUT --instance-path JSS/instances/$1
-			popd
-		fi
-	done
+	OUTPUT="$PWD/results/jss_$1.json"
+	if ! [ -f "$OUTPUT" ]; then
+		pushd baselines/RL-Job-Shop-Scheduling/JSS/JSS
+		WANDB_MODE=offline python main.py --store $OUTPUT --instance-path instances/$1
+		popd
+	fi
 }
 
 mkdir -p results
