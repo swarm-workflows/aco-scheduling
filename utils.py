@@ -133,6 +133,13 @@ def plot_aco_vs_ortools(aco_best, ortools_best, fn=None):
         plt.savefig(f"{fn}.png")
         # plt.show()
 
+
 def store(path, obj):
+    r""" Store the object to json file.
+
+    Args:
+        path (str): file name
+        obj (dict): object to store
+    """
     with open(path, 'w') as f:
-        json.dump(obj, f)
+        json.dump(obj, f, indent=2)

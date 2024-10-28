@@ -11,30 +11,30 @@ run_jsp
 # Usage:
 # run_for_probilem "ft" "06" "taillard"
 run_for_problem() {
-	ARGS="--problem $1 --id $2 --format $3"
-	for module in $ALL_MODULES; do
-		OUTPUT="results/${module}_$1_$2_$3.json"
-		if ! [ -f $OUTPUT ]; then
-			python -m $module $ARGS --store $OUTPUT
-		fi
-	done
+  ARGS="--problem $1 --id $2 --format $3"
+  for module in $ALL_MODULES; do
+    OUTPUT="results/${module}_$1_$2_$3.json"
+    if ! [ -f $OUTPUT ]; then
+      python -m $module $ARGS --store $OUTPUT
+    fi
+  done
 
-	# Special case: ACO + LS
-	OUTPUT="results/jsp_ls_$1_$2_$3.json"
-	if ! [ -f $OUTPUT ]; then
-		python -m run_jsp --enable-ls $ARGS --store $OUTPUT
-	fi
+  # Special case: ACO + LS
+  OUTPUT="results/jsp_ls_$1_$2_$3.json"
+  if ! [ -f $OUTPUT ]; then
+    python -m run_jsp --enable-ls $ARGS --store $OUTPUT
+  fi
 }
 
 # Usage:
 # run_jss_for_problem "ft06"
 run_jss_for_problem() {
-	OUTPUT="$PWD/results/jss_$1.json"
-	if ! [ -f "$OUTPUT" ]; then
-		pushd baselines/RL-Job-Shop-Scheduling/JSS/JSS
-		WANDB_MODE=offline python main.py --store $OUTPUT --instance-path instances/$1
-		popd
-	fi
+  OUTPUT="$PWD/results/jss_$1.json"
+  if ! [ -f "$OUTPUT" ]; then
+    pushd baselines/RL-Job-Shop-Scheduling/JSS/JSS
+    WANDB_MODE=offline python main.py --store $OUTPUT --instance-path instances/$1
+    popd
+  fi
 }
 
 mkdir -p results

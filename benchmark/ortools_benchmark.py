@@ -102,7 +102,7 @@ if __name__ == "__main__":
     args = argparse.ArgumentParser()
     args.add_argument("--problem", type=str, default="abz")
     args.add_argument("--id", type=str, default="5")
-    args.add_argument("--format", type=str, default="standard", choices=["standard", "taillard"])
+    args.add_argument("--format", type=str, default="taillard", choices=["standard", "taillard"])
     args.add_argument("--all", action="store_true")
     args.add_argument("--store", type=str)
     args = args.parse_args()
@@ -157,4 +157,4 @@ if __name__ == "__main__":
                 'problem': f'{args.format}_{args.problem}_{args.id}',
                 'times': n_jobs,
                 'machines': n_machines,
-                })
+            })

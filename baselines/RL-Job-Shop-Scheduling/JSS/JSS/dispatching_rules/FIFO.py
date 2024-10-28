@@ -1,11 +1,12 @@
 import random
+from time import time
+
+import gym
 import numpy as np
 import wandb
-import gym
-
 from JSS.default_config import parse_config
-from time import time
 from JSS.utils import store
+
 
 def FIFO_worker(default_config):
     wandb.init(config=default_config)
@@ -39,7 +40,6 @@ def FIFO_worker(default_config):
             "solution": int(make_span),
             'time': toc - tic,
         })
-
 
 
 if __name__ == "__main__":
