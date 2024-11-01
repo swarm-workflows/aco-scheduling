@@ -140,7 +140,7 @@ def train_func():
     config['entropy_coeff'] = config['entropy_start']
     config['entropy_coeff_schedule'] = [[0, config['entropy_start']], [15000000, config['entropy_end']]]
 
-    config.pop('instance_path', None)
+    instance_path = config.pop('instance_path', None)
     config.pop('layer_size', None)
     config.pop('layer_nb', None)
     config.pop('lr_start', None)
@@ -165,7 +165,7 @@ def train_func():
     
     store(output, {
         "solver": 'jss_RL',
-        "problem": config['instance_path'],
+        "problem": instance_path,
         "solution": result,
         'time': end_time - start_time,
     })
