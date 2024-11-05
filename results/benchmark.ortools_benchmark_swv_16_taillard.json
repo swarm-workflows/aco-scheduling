@@ -1,0 +1,1 @@
+{"solver": "ortools_benchmark", "solution": 2924.0, "optimal": true, "time": 0.2696194648742676, "problem": "taillard_swv_16", "times": 50, "machines": 10}

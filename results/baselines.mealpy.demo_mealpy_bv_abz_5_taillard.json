@@ -1,0 +1,1 @@
+{"solver": "demo_mealpy_bv", "solution": 4198.0, "time": 5.8482277393341064, "problem": "taillard_abz_5", "times": 10, "machines": 10, "ortools_best": 1234.0, "epoch": [4198.0, 4198.0, 4198.0]}
