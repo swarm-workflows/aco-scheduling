@@ -27,17 +27,19 @@ run_for_problem() {
 }
 
 # Usage:
-# run_jss_for_problem "ft06"
+# run_jss_for_problem "ft" "06"
 run_jss_for_problem() {
-  OUTPUT="$PWD/results/jss_$1.json"
+  OUTPUT="$PWD/results/jss_$1_$2.json"
   if ! [ -f "$OUTPUT" ]; then
-    pushd baselines/RL-Job-Shop-Scheduling/JSS/JSS
-    WANDB_MODE=offline python main.py --store $OUTPUT --instance-path instances/$1
+    pushd baselines/RL-Job-Shop-Scheduling
+	source setup.sh
+	pushd JSS/JSS
+    WANDB_MODE=offline python main.py --store $OUTPUT --instance-path benchmark/$1/$1$2.txt
     popd
   fi
 }
 
-mkdir -p results
+#mkdir -p results
 #for i in $(seq 41 50); do
 #	run_for_problem "ta" $i "taillard"
 #done
@@ -46,4 +48,5 @@ run_for_problem "abz" "5" "taillard"
 
 run_for_problem "ft" "10" "taillard"
 
-run_jss_for_problem "ta01"
+run_jss_for_problem "abz" "5"
+
