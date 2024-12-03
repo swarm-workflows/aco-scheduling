@@ -3,10 +3,11 @@ import collections
 import random
 
 from ortools.sat.python import cp_model
+from utils import read_fjsp_file
 
 
 class SolutionPrinter(cp_model.CpSolverSolutionCallback):
-    """Print intermediate solutions."""
+    r"""Print intermediate solutions."""
 
     def __init__(self) -> None:
         cp_model.CpSolverSolutionCallback.__init__(self)
@@ -20,7 +21,14 @@ class SolutionPrinter(cp_model.CpSolverSolutionCallback):
 
 
 def flexible_jobshop(jobs) -> None:
+    r"""Flexible job-shop problem.
 
+    Args:
+        jobs (list): List of jobs. Each job is a list of tasks. Each task is a list of tuples (duration, machine).
+
+    Returns:
+        None
+    """
     num_jobs = len(jobs)
     all_jobs = range(num_jobs)
 
@@ -181,34 +189,11 @@ def random_case() -> None:
     flexible_jobshop(jobs)
 
 
-def read_file(fn):
-    """ read file and return jobs """
-    with open(fn, 'r') as file:
-        num_jobs, num_machines, _ = list(map(int, file.readline().strip().split()))
-        jobs = []
-        for _ in range(num_jobs):
-            line = list(map(int, file.readline().strip().split()))
-            num_ops = line[0]
-            job = []
-            i = 1
-            for _ in range(num_ops):
-                num_tuples = line[i]
-                i += 1
-                task = []
-                for _ in range(num_tuples):
-                    machine = line[i] - 1  # Adjusting machine index to be 0-based
-                    duration = line[i + 1]
-                    task.append((duration, machine))
-                    i += 2
-                job.append(task)
-            jobs.append(job)
-    return jobs
-
-
 if __name__ == "__main__":
     # random_case()
     # TODO: use argparser
     fn = "./Monaldo/Fjsp/Job_Data/Brandimarte_Data/Text/Mk06.fjs"
-    jobs = read_file(fn)
+    # jobs = read_file(fn)
+    num_jobs, num_machines, jobs = read_fjsp_file(fn)
     flexible_jobshop(jobs)
     # NOTE: terminate with Ctrl+C if it's running for too long
