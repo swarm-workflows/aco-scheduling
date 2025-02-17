@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import sys
 from argparse import ArgumentParser
 
@@ -26,9 +24,6 @@ def create_random_job_scheduling_problem(n_jobs, n_machines, seed=None):
 
     mat_data = np.random.triangular(10, 150, 300, size=n_jobs * n_machines)
     mat_data = mat_data.reshape(n_jobs, n_machines)
-    # mat_data = np.random.normal((n_jobs*n_machines)) * 50 + 50  # Random processing times
-    # mat_data = np.random.normal((n_jobs*n_machines)) * 50 + 50  # Random processing times
-    # mat_data = np.random.random((n_jobs,n_machines)) * 100
 
     # sys.exit(0)
     return (mat_data)
@@ -188,13 +183,9 @@ class JobShopProblem(Problem):
 if __name__ == "__main__":
 
     parser = ArgumentParser(description="Scheduling Experiments")
-    parser.add_argument("-m", "--machines",
-                        metavar="INT",
-                        type=int,
-                        default=10,
-                        help="Number of machines. (Default: 10)")
-    parser.add_argument("-j", "--jobs", metavar="INT", type=int, default=300, help="Number of jobs. (Default: 300)")
-    parser.add_argument("-s", "--seed", metavar="INT", type=int, default=1, help="Numpy seed. (Default: 1)")
+    parser.add_argument("-m", "--machines", type=int, default=10, help="Number of machines. (Default: 10)")
+    parser.add_argument("-j", "--jobs", type=int, default=300, help="Number of jobs. (Default: 300)")
+    parser.add_argument("-s", "--seed", type=int, default=1, help="Numpy seed. (Default: 1)")
 
     args = parser.parse_args()
     job_times = create_random_job_scheduling_problem(n_jobs=args.jobs, n_machines=args.machines, seed=args.seed)
