@@ -2,14 +2,19 @@
 
 TODO: simply the verbose print statements
 """
+import argparse
 import collections
+import csv
+import os.path as osp
 import random
 from glob import glob
 from time import time
 
+from matplotlib.pylab import f
 from ortools.sat.python import cp_model
+from tqdm import tqdm
 
-from benchmark_fjsp.utils import read_all_fjsp_files, read_fjsp_file
+from benchmark.utils import read_all_fjsp_files, read_fjsp_file
 
 
 class SolutionPrinter(cp_model.CpSolverSolutionCallback):
@@ -168,7 +173,7 @@ def flexible_jobshop(jobs) -> None:
         #         print(f"  task_{job_id}_{task_id} starts at {start_value} (alt"
         #               f" {selected}, machine {machine}, duration {task_duration})")
 
-    # print(solver.response_stats())
+    return solver.objective_value
 
 
 def random_case() -> None:
@@ -197,20 +202,45 @@ def random_case() -> None:
     flexible_jobshop(jobs)
 
 
+def run_benchmark(fn):
+    r"""Run benchmark on a single problem instance."""
+    n_jobs, n_machines, jobs = read_fjsp_file(fn)
+    instance = osp.splitext(osp.basename(fn))[0]
+    result = {
+        'instance': instance,
+        'n_jobs': n_jobs,
+        'n_machines': n_machines
+    }
+
+    tic = time()
+    makespan = flexible_jobshop(jobs)
+    toc = time()
+    result["makespan"] = makespan
+    result["walltime"] = toc - tic
+    return result
+
+
 if __name__ == "__main__":
-    # random_case()
-    # TODO: use argparser
-    # fn = "./Monaldo/Fjsp/Job_Data/Brandimarte_Data/Text/Mk06.fjs"
-    # # jobs = read_file(fn)
-    # num_jobs, num_machines, jobs = read_fjsp_file(fn)
-    # flexible_jobshop(jobs)
-    # NOTE: terminate with Ctrl+C if it's running for too long
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--output", type=str, default="benchmark/FJSP/ortools_results.csv")
+    args = parser.parse_args()
 
     files = glob("./**/*.fjs", recursive=True)
-    for fn in files:
-        print(fn)
-        num_jobs, num_machines, jobs = read_fjsp_file(fn)
-        tic = time()
-        flexible_jobshop(jobs)
-        toc = time()
-        print(f"Time: {toc - tic:.2f} s")
+    results = []
+    pbar = tqdm(sorted(files))
+    for fn in pbar:
+        try:
+            res = run_benchmark(fn)
+            results.append(res)
+            pbar.set_postfix({'instance': res['instance'], 'makespan': res['makespan'], 'walltime': res['walltime']})
+        except Exception as e:
+            print(f"Error processing {fn}: {e}")
+
+    # Save results to CSV
+    fieldnames = ['instance', 'n_jobs', 'n_machines', 'makespan', 'walltime']
+    with open(args.output, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(results)
+
+    print(f"Results saved to {args.output}")
