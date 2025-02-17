@@ -1,10 +1,10 @@
 import random
-import wandb
+from time import time
+
 import gym
 import numpy as np
-
+import wandb
 from JSS.default_config import parse_config
-from time import time
 from JSS.utils import store
 
 
@@ -40,8 +40,6 @@ def MTWR_worker(default_config):
             "solution": int(make_span),
             'time': toc - tic,
         })
-
-
 
 
 if __name__ == "__main__":

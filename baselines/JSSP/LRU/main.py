@@ -7,7 +7,7 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-from benchmark.utils import read_file
+from benchmark.utils import read_jssp_file
 from utils import store
 
 
@@ -104,15 +104,13 @@ def main():
     parser.add_argument('--store', type=str)
     args = parser.parse_args()
     if args.format == "taillard":
-        times, machines = read_file(f"benchmark/{args.problem}/Taillard_specification/{args.problem}{args.id}.txt",
-                                    args.problem,
-                                    args.id,
-                                    args.format)
+        times, machines = read_jssp_file(
+            f"benchmark/{args.problem}/Taillard_specification/{args.problem}{args.id}.txt", args.problem, args.id, args.format)
     else:
-        times, machines = read_file(f"benchmark/{args.problem}/{args.problem}{args.id}.txt",
-                                    args.problem,
-                                    args.id,
-                                    args.format)
+        times, machines = read_jssp_file(f"benchmark/{args.problem}/{args.problem}{args.id}.txt",
+                                         args.problem,
+                                         args.id,
+                                         args.format)
 
     queue_cls = Queue if args.variant == 'fifo' else LRUQueue
     tic = time()

@@ -1,7 +1,8 @@
 import argparse
 import multiprocessing as mp
 
-from ray.rllib.agents.ppo import ppo
+# from ray.rllib.agents.ppo import ppo
+from ray.rllib.algorithms.ppo import ppo
 
 default_config = {
     'env': 'JSSEnv:jss-v1',
@@ -40,6 +41,7 @@ default_config = {
     "simple_optimizer": False,
     "_fake_gpus": False,
 }
+
 
 def parse_config():
     config = default_config.copy()
