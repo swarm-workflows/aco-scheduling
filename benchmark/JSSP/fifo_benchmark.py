@@ -42,7 +42,7 @@ def run_benchmark(problem_file, format="taillard", problem="", id=""):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=str, default="fifo_results.csv")
+    parser.add_argument("--output", type=str, default="benchmark/JSSP/fifo_results.csv")
     parser.add_argument("--format", type=str, default="taillard",
                         choices=["standard", "taillard"])
     args = parser.parse_args()
