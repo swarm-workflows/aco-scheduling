@@ -3,7 +3,7 @@ import collections
 from ortools.sat.python import cp_model
 
 
-def ortools_api(jobs, machines):
+def ortools_api(jobs, machines, **kwargs):
     r""" Solve the problem in OR-Tools
 
     Args:
@@ -25,7 +25,9 @@ def ortools_api(jobs, machines):
     model = cp_model.CpModel()
 
     # Named tuple to store information about created variables.
-    task_type = collections.namedtuple("task_type", "start end interval")
+    task_type = collections.namedtuple(
+        "task_type", "start end interval"
+    )
     # Named tuple to manipulate solution information.
     assigned_task_type = collections.namedtuple(
         "assigned_task_type", "start job index duration"
