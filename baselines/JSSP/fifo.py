@@ -151,8 +151,9 @@ def solve(times, machines, variant="fifo", **kwargs) -> int:
             if m.current_task is not None:
                 m.release_time = t + m.current_task.time
                 if _VERBOSE:
-                    print(
-                        f'T_{m.current_task.job, m.current_task.step} @ m_id {m.current_task.machine}, s_time {t}, f_time {m.release_time}')
+                    print(f'T_{m.current_task.job, m.current_task.step} '
+                          f'@ m_id {m.current_task.machine}, '
+                          f's_time {t}, f_time {m.release_time}')
     if _VERBOSE:
         print(f'All tasks completed at {t}')
 
@@ -165,7 +166,6 @@ def main():
     parser.add_argument('--id', type=str, default="06")
     parser.add_argument('--format', type=str, default="taillard", choices=["standard", "taillard"])
     parser.add_argument('--variant', choices=['fifo', 'lwr', 'mwr'], default='fifo')
-    parser.add_argument('--store', type=str)
     parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
     if args.format == "taillard":
