@@ -1,7 +1,7 @@
 import os.path as osp
 
 
-def read_file(fn, problem="", id="", format="taillard"):
+def read_jssp_file(fn, problem="", id="", format="taillard"):
     r"""Read job file and return duration and machine matrices.
 
     Args:

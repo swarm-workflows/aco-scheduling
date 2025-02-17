@@ -1,6 +1,5 @@
 # Jobshop Instances
 
-
 ## Description
 
 * __Disjunctive Graph__
@@ -15,5 +14,6 @@ Detailed solutions are accessible from [results.csv](./results.csv), where
   * `opt_val` is the optimal makespan value reported from benchmark, and 
   * `ortools_opt` is the makespan value obtained by using ortools given a time limit of 10 minutes.
 
+## References
 
 [[1](http://jobshop.jjvh.nl/index.php)]: A collection of jobshop instances.
