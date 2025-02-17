@@ -1,15 +1,15 @@
-#!/usr/bin/env python
 import argparse
 import itertools
+from dataclasses import dataclass
+from time import time
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from dataclasses import dataclass
-from typing import Tuple
 from benchmark.utils import read_file
 from utils import store
-from time import time
+
 
 @dataclass(frozen=True)
 class Task:
@@ -18,13 +18,17 @@ class Task:
     machine: int
     time: int
 
+
 @dataclass
 class MachineState:
     uid: int
     release_time: int = 0
     current_task: Task | None = None
 
+
 class Queue:
+    r""" FIFO queue for tasks """
+
     def __init__(self, n_machines):
         self._q = [[] for _ in range(n_machines)]
 
@@ -40,7 +44,10 @@ class Queue:
     def empty(self):
         return all([len(x) == 0 for x in self._q])
 
+
 class LRUQueue(Queue):
+    r""" LRU queue for tasks """
+
     def enqueue(self, t: Task):
         super().enqueue(t)
         self._q[t.machine] = sorted(self._q[t.machine], key=lambda t: t.time)
@@ -50,7 +57,7 @@ def solve(times, machines, queue_cls):
     jobs_n, machines_n = len(times), len(times[0])
 
     all_tasks = {(j, t): Task(j, t, machines[j][t], times[j][t])
-        for j,t in itertools.product(range(jobs_n), range(machines_n))}
+                 for j, t in itertools.product(range(jobs_n), range(machines_n))}
 
     states = [MachineState(i) for i in range(machines_n)]
 
@@ -88,7 +95,6 @@ def solve(times, machines, queue_cls):
     return t
 
 
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--problem', type=str, default="ft")
@@ -108,7 +114,6 @@ def main():
                                     args.id,
                                     args.format)
 
-
     queue_cls = Queue if args.variant == 'fifo' else LRUQueue
     tic = time()
     makespan = solve(times, machines, queue_cls)
@@ -124,5 +129,6 @@ def main():
             'machines': len(times[0]),
         })
 
+
 if __name__ == '__main__':
-        main()
+    main()
