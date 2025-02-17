@@ -1,9 +1,15 @@
-""" Example from: https://github.com/google/or-tools/blob/stable/examples/python/flexible_job_shop_sat.py """
+""" Example from: https://github.com/google/or-tools/blob/stable/examples/python/flexible_job_shop_sat.py
+
+TODO: simply the verbose print statements
+"""
 import collections
 import random
+from glob import glob
+from time import time
 
 from ortools.sat.python import cp_model
-from utils import read_fjsp_file
+
+from benchmark_fjsp.utils import read_all_fjsp_files, read_fjsp_file
 
 
 class SolutionPrinter(cp_model.CpSolverSolutionCallback):
@@ -47,7 +53,7 @@ def flexible_jobshop(jobs) -> None:
                 max_task_duration = max(max_task_duration, alternative[0])
             horizon += max_task_duration
 
-    print(f"Horizon = {horizon}")
+    # print(f"Horizon = {horizon}")
 
     # Global storage of variables.
     intervals_per_resources = collections.defaultdict(list)
@@ -140,27 +146,29 @@ def flexible_jobshop(jobs) -> None:
 
     # Solve model.
     solver = cp_model.CpSolver()
-    solution_printer = SolutionPrinter()
-    status = solver.solve(model, solution_printer)
+    solver.parameters.max_time_in_seconds = 600.0
+    # solution_printer = SolutionPrinter()
+    # status = solver.solve(model, solution_printer)
+    status = solver.solve(model)
 
     # Print final solution.
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         print(f"Optimal objective value: {solver.objective_value}")
-        for job_id in all_jobs:
-            print(f"Job {job_id}")
-            for task_id, task in enumerate(jobs[job_id]):
-                start_value = solver.value(starts[(job_id, task_id)])
-                machine: int = -1
-                task_duration: int = -1
-                selected: int = -1
-                for alt_id, alt in enumerate(task):
-                    if solver.boolean_value(presences[(job_id, task_id, alt_id)]):
-                        task_duration, machine = alt
-                        selected = alt_id
-                print(f"  task_{job_id}_{task_id} starts at {start_value} (alt"
-                      f" {selected}, machine {machine}, duration {task_duration})")
+        # for job_id in all_jobs:
+        #     print(f"Job {job_id}")
+        #     for task_id, task in enumerate(jobs[job_id]):
+        #         start_value = solver.value(starts[(job_id, task_id)])
+        #         machine: int = -1
+        #         task_duration: int = -1
+        #         selected: int = -1
+        #         for alt_id, alt in enumerate(task):
+        #             if solver.boolean_value(presences[(job_id, task_id, alt_id)]):
+        #                 task_duration, machine = alt
+        #                 selected = alt_id
+        #         print(f"  task_{job_id}_{task_id} starts at {start_value} (alt"
+        #               f" {selected}, machine {machine}, duration {task_duration})")
 
-    print(solver.response_stats())
+    # print(solver.response_stats())
 
 
 def random_case() -> None:
@@ -192,8 +200,17 @@ def random_case() -> None:
 if __name__ == "__main__":
     # random_case()
     # TODO: use argparser
-    fn = "./Monaldo/Fjsp/Job_Data/Brandimarte_Data/Text/Mk06.fjs"
-    # jobs = read_file(fn)
-    num_jobs, num_machines, jobs = read_fjsp_file(fn)
-    flexible_jobshop(jobs)
+    # fn = "./Monaldo/Fjsp/Job_Data/Brandimarte_Data/Text/Mk06.fjs"
+    # # jobs = read_file(fn)
+    # num_jobs, num_machines, jobs = read_fjsp_file(fn)
+    # flexible_jobshop(jobs)
     # NOTE: terminate with Ctrl+C if it's running for too long
+
+    files = glob("./**/*.fjs", recursive=True)
+    for fn in files:
+        print(fn)
+        num_jobs, num_machines, jobs = read_fjsp_file(fn)
+        tic = time()
+        flexible_jobshop(jobs)
+        toc = time()
+        print(f"Time: {toc - tic:.2f} s")

@@ -21,7 +21,7 @@ class Task:
 
 @dataclass
 class MachineState:
-    uid: int
+    m_id: int
     release_time: int = 0
     current_task: Task | None = None
 
@@ -33,9 +33,22 @@ class Queue:
         self._q = [[] for _ in range(n_machines)]
 
     def enqueue(self, t: Task):
+        r""" Enqueue a task, first in first out (FIFO), append the task to the end of the queue for the machine.
+
+        Args:
+            t (Task): task to enqueue.
+        """
         self._q[t.machine].append(t)
 
     def get(self, m: int):
+        r""" Get the next task to process for the machine.
+
+        Args:
+            m (int): machine id
+
+        Returns:
+            (Task): task to process or None if there are no tasks to process
+        """
         if len(self._q[m]) > 0:
             return self._q[m].pop(0)
         else:
@@ -45,53 +58,105 @@ class Queue:
         return all([len(x) == 0 for x in self._q])
 
 
-class LRUQueue(Queue):
-    r""" LRU queue for tasks """
+class LWRQueue(Queue):
+    r""" LWR queue for tasks """
 
     def enqueue(self, t: Task):
+        r""" Enqueue a task, Least Work Remainining (LWR), sort the queue by time in ascending order.
+
+        Args:
+            t (Task): task to enqueue.
+        """
+        # append the task to the queue of the machine
         super().enqueue(t)
+        # sort the queue by time in ascending order
         self._q[t.machine] = sorted(self._q[t.machine], key=lambda t: t.time)
 
 
-def solve(times, machines, queue_cls):
-    jobs_n, machines_n = len(times), len(times[0])
+class MWRQueue(Queue):
+    r""" MWR queue for tasks """
 
-    all_tasks = {(j, t): Task(j, t, machines[j][t], times[j][t])
-                 for j, t in itertools.product(range(jobs_n), range(machines_n))}
+    def enqueue(self, t: Task):
+        r""" Enqueue a task, Most Work Remainining (MWR), sort the queue by time in descending order.
 
-    states = [MachineState(i) for i in range(machines_n)]
+        Args:
+            t (Task): task to enqueue.
+        """
+        # append the task to the queue of the machine
+        super().enqueue(t)
+        # sort the queue by time in descending order
+        self._q[t.machine] = sorted(self._q[t.machine], key=lambda t: t.time, reverse=True)
 
-    queue = queue_cls(machines_n)
-    for j in range(jobs_n):
+
+def solve(times, machines, variant="fifo", **kwargs) -> int:
+    r""" Solve the JSSP problem.
+
+    Args:
+        times: list of list of int, job processing times
+        machines: list of list of int, machine processing times
+        queue_cls: class, queue class to use for task scheduling
+
+    Returns:
+        (int): makespan
+    """
+
+    _VERBOSE = kwargs.get('verbose', False)
+    n_jobs, m_machines = len(times), len(times[0])
+
+    all_tasks = {(j_id, t_id): Task(j_id, t_id, machines[j_id][t_id], times[j_id][t_id])
+                 for j_id, t_id in itertools.product(range(n_jobs), range(m_machines))}
+
+    m_states = [MachineState(i) for i in range(m_machines)]
+
+    if variant == 'mwr':
+        queue_cls = MWRQueue
+    elif variant == 'lwr':
+        queue_cls = LWRQueue
+    else:
+        queue_cls = Queue
+
+    # initiate the queue
+    queue = queue_cls(m_machines)
+    # enqueue the queue with the first task of each job
+    for j in range(n_jobs):
         queue.enqueue(all_tasks[(j, 0)])
 
     t = 0
-    while not queue.empty() or any([m.current_task is not None for m in states]):
-        rt = [m.release_time for m in states if m.current_task is not None]
+    # if the queue is not empty or there are still tasks to be processed
+    while not queue.empty() or any([m.current_task is not None for m in m_states]):
+        # check remaining tasks
+        rt = [m.release_time for m in m_states if m.current_task is not None]
         if len(rt) > 0:
             assert min(rt) > t
             t = min(rt)
         else:
             assert t == 0
-        print(f't = {t}')
+        # if _VERBOSE:
+        #     print(f't = {t}')
 
-        for m in states:
+        for m in m_states:
+            # check all tasks in the machine finished
             if m.release_time == t and m.current_task is not None:
-                print(f'Task {m.current_task} complete')
+                # if _VERBOSE:
+                #     print(f'Task {m.current_task} complete')
                 next_id = (m.current_task.job, m.current_task.step + 1)
+                # insert next task to queue
                 if next_id in all_tasks:
                     queue.enqueue(all_tasks[next_id])
                 m.current_task = None
 
-        for m in states:
+        for m in m_states:
             if m.current_task is not None:
                 continue
-            m.current_task = queue.get(m.uid)
+            m.current_task = queue.get(m.m_id)
             if m.current_task is not None:
                 m.release_time = t + m.current_task.time
-                print(f'Task {m.current_task} start, release {m.release_time}')
+                if _VERBOSE:
+                    print(
+                        f'T_{m.current_task.job, m.current_task.step} @ m_id {m.current_task.machine}, s_time {t}, f_time {m.release_time}')
+    if _VERBOSE:
+        print(f'All tasks completed at {t}')
 
-    print(f'All tasks completed at {t}')
     return t
 
 
@@ -100,8 +165,9 @@ def main():
     parser.add_argument('--problem', type=str, default="ft")
     parser.add_argument('--id', type=str, default="06")
     parser.add_argument('--format', type=str, default="taillard", choices=["standard", "taillard"])
-    parser.add_argument('--variant', choices=['fifo', 'lru'], default='fifo')
+    parser.add_argument('--variant', choices=['fifo', 'lwr', 'mwr'], default='fifo')
     parser.add_argument('--store', type=str)
+    parser.add_argument('--verbose', action='store_true')
     args = parser.parse_args()
     if args.format == "taillard":
         times, machines = read_jssp_file(
@@ -112,11 +178,17 @@ def main():
                                          args.id,
                                          args.format)
 
-    queue_cls = Queue if args.variant == 'fifo' else LRUQueue
     tic = time()
-    makespan = solve(times, machines, queue_cls)
+    makespan = solve(times, machines, variant=args.variant, verbose=args.verbose)
     toc = time()
-    print(f"Time: {toc - tic:.2f}")
+    print({
+        'solver': f'list_{args.variant}',
+        'solution': makespan,
+        'time': (toc - tic),
+        'problem': f'{args.format}_{args.problem}_{args.id}',
+        'times': len(times),
+        'machines': len(times[0]),
+    })
     if args.store:
         store(args.store, {
             'solver': f'list_{args.variant}',

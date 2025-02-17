@@ -1,4 +1,4 @@
-"""This model implements a simple jobshop named ft06.
+"""This model implements a simple jobshop scheduling problem using OR-Tools.
 
 A jobshop is a standard scheduling problem when you must sequence a
 series of task_types on a set of machines. Each job contains one task_type per
@@ -6,7 +6,7 @@ machine. The order of execution and the length of each job on each
 machine is task_type dependent.
 
 The objective is to minimize the maximum completion time of all
-jobs. This is called the makespan.
+jobs. This is called the `makespan`.
 """
 
 import argparse
@@ -19,7 +19,7 @@ from typing import Tuple
 from ortools.sat.colab import visualization
 from ortools.sat.python import cp_model
 
-from .utils import read_file
+from benchmark.utils import read_jssp_file
 from utils import store
 
 
@@ -57,7 +57,7 @@ def jobshop_problem(durations, machines) -> Tuple[bool, float]:
     for i in all_machines:
         machines_jobs = []
         for j in all_jobs:
-            for k in all_machines:
+            for k in range(len(machines[j])):
                 if machines[j][k] == i:
                     machines_jobs.append(all_tasks[(j, k)].interval)
         machine_to_jobs[i] = machines_jobs
@@ -115,7 +115,7 @@ if __name__ == "__main__":
             files = glob(f"{base_dir}/*/*.txt")
 
         for fn in sorted(files[:]):
-            durations, machines = read_file(fn, problem=args.problem, id=args.id, format=args.format)
+            durations, machines = read_jssp_file(fn, problem=args.problem, id=args.id, format=args.format)
             n_jobs = len(durations)
             n_machines = len(durations[0])
             print(f"Solving {fn.split('/')[-1].split('.')[0]} {n_jobs} {n_machines}", end="\t")
@@ -140,7 +140,7 @@ if __name__ == "__main__":
             fn = f"{base_dir}/{args.problem}/{args.problem}{args.id}.txt"
         else:
             fn = f"{base_dir}/{args.problem}/Taillard_specification/{args.problem}{args.id}.txt"
-        durations, machines = read_file(fn)
+        durations, machines = read_jssp_file(fn)
         n_jobs = len(durations)
         n_machines = len(durations[0])
         print(f"Solving {fn.split('/')[-1].split('.')[0]} {n_jobs} {n_machines}", end="\t")
