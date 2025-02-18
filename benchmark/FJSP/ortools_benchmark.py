@@ -159,21 +159,10 @@ def flexible_jobshop(jobs) -> None:
     # Print final solution.
     if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         print(f"Optimal objective value: {solver.objective_value}")
-        # for job_id in all_jobs:
-        #     print(f"Job {job_id}")
-        #     for task_id, task in enumerate(jobs[job_id]):
-        #         start_value = solver.value(starts[(job_id, task_id)])
-        #         machine: int = -1
-        #         task_duration: int = -1
-        #         selected: int = -1
-        #         for alt_id, alt in enumerate(task):
-        #             if solver.boolean_value(presences[(job_id, task_id, alt_id)]):
-        #                 task_duration, machine = alt
-        #                 selected = alt_id
-        #         print(f"  task_{job_id}_{task_id} starts at {start_value} (alt"
-        #               f" {selected}, machine {machine}, duration {task_duration})")
-
-    return solver.objective_value
+        return True, solver.objective_value
+    else:
+        print(f"Time limit, best known makespan: {solver.ObjectiveValue()}")
+        return False, solver.ObjectiveValue()
 
 
 def random_case() -> None:
@@ -213,7 +202,7 @@ def run_benchmark(fn):
     }
 
     tic = time()
-    makespan = flexible_jobshop(jobs)
+    optimal_flag, makespan = flexible_jobshop(jobs)
     toc = time()
     result["makespan"] = makespan
     result["walltime"] = toc - tic

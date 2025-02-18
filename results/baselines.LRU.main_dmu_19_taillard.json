@@ -1,8 +1,0 @@
-{
-  "solver": "list_fifo",
-  "solution": 4902,
-  "time": 0.009795665740966797,
-  "problem": "taillard_dmu_19",
-  "times": 30,
-  "machines": 20
-}
