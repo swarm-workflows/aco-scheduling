@@ -205,6 +205,27 @@ class ACO(object):
             # update pheromones on the graph
             self._deploy_backward_search_ants()
 
+        def process_ant(graph, ant_random_init, source, target, alpha, beta):
+            init_point = random.choice(list(graph.DisjGraph.nodes)) if ant_random_init else source
+            ant = Ant(graph, init_point, target, visited_nodes=set(), path=[], alpha=alpha, beta=beta)
+            return ant
+
+        for iter in range(self.num_iterations):
+            self.search_ants = []
+            # print(f"Iter {iter}:", end=" ")
+
+            self.search_ants = Parallel(n_jobs=-1)(
+                delayed(process_ant)(self.graph, self.ant_random_init, source, target, self.alpha, self.beta)
+                for ant_idx in range(num_ants)
+            )
+
+            # move ants in the graph
+            self._deploy_forward_search_ants()
+            # update pheromones on the graph
+            self._deploy_backward_search_ants()
+        for iter in range(self.num_iterations):
+            pass
+
     def _deploy_solution_ant(self, source, target):
         r"""Deploy the pheromone-greedy solution to find minimum makespan
 

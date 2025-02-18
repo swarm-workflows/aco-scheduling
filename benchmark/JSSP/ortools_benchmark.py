@@ -20,7 +20,7 @@ from ortools.sat.colab import visualization
 from ortools.sat.python import cp_model
 
 from benchmark.utils import read_jssp_file
-from utils import store
+from haco.utils import store
 
 
 def jobshop_problem(durations, machines) -> Tuple[bool, float]:
